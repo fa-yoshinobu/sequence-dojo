@@ -1,0 +1,27 @@
+{
+  "title": "練習1 自己保持と非常停止",
+  "grade": 3,
+  "description": "【仕様】\n1. PB1 を押すと PL1 が点灯し、PB1 を離しても点灯を続ける（自己保持）。\n2. PB2 を押すと PL1 が消灯する。\n3. PL1 点灯中は PL4 を 1秒周期（0.5秒点灯・0.5秒消灯）で点滅させる。\n4. PB5（非常停止・b接点）が押されている間は PB1 を受け付けず、点灯中なら消灯する。\n\n【ヒント】PB5 は b接点なので、押していないとき入力が ON です。",
+  "scenario": [
+    { "reset": true },
+    { "expect": { "PL1": false }, "msg": "初期状態で PL1 消灯" },
+    { "press": "PB1", "ms": 300 },
+    { "wait": 200 },
+    { "expect": { "PL1": true }, "msg": "PB1 で PL1 点灯（自己保持）" },
+    { "waitFor": { "PL4": true }, "timeout": 1200, "msg": "PL4 点滅: 点灯を確認" },
+    { "waitFor": { "PL4": false }, "timeout": 1200, "msg": "PL4 点滅: 消灯を確認" },
+    { "press": "PB2", "ms": 300 },
+    { "wait": 200 },
+    { "expect": { "PL1": false }, "msg": "PB2 で PL1 消灯" },
+    { "expectFor": { "PL4": false }, "ms": 1200, "msg": "消灯中は PL4 も消灯" },
+    { "press": "PB1", "ms": 300 },
+    { "wait": 200 },
+    { "hold": "PB5", "on": true },
+    { "wait": 200 },
+    { "expect": { "PL1": false }, "msg": "非常停止で PL1 消灯" },
+    { "press": "PB1", "ms": 300 },
+    { "wait": 200 },
+    { "expect": { "PL1": false }, "msg": "非常停止中は PB1 を受け付けない" },
+    { "hold": "PB5", "on": false }
+  ]
+}

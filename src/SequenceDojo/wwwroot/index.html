@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>シーケンス道場 3D</title>
+<link rel="icon" href="img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/style.css">
+<script>
+  // 画面の処理でエラーが起きたら上部に表示する（操作できなくなったときの手がかりにする）
+  (() => {
+    const show = msg => {
+      let bar = document.getElementById('errorBar');
+      if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'errorBar';
+        bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:1000;background:#b3261e;color:#fff;font:12px/1.5 "Yu Gothic UI",sans-serif;padding:4px 36px 4px 10px;white-space:pre-wrap;word-break:break-all;max-height:30vh;overflow:auto';
+        const x = document.createElement('button');
+        x.textContent = '✕'; x.title = '閉じる';
+        x.style.cssText = 'position:absolute;top:2px;right:6px;background:none;border:none;color:#fff;font-size:14px;cursor:pointer';
+        x.onclick = () => bar.remove();
+        bar.appendChild(x);
+        (document.body ?? document.documentElement).appendChild(bar);
+      }
+      const line = document.createElement('div');
+      line.textContent = `画面でエラーが発生しました: ${msg}`;
+      bar.insertBefore(line, bar.lastChild);
+    };
+    addEventListener('error', e => show(`${e.message}（${(e.filename || '').split('/').pop()}:${e.lineno}）`));
+    addEventListener('unhandledrejection', e => show(String(e.reason?.stack || e.reason)));
+  })();
+</script>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="splash" title="クリックでスキップ">
+  <img src="img/logo.svg" alt="シーケンス道場 3D">
+  <div class="splash-hint">クリックでスキップ</div>
+</div>
+<div id="view"></div>
+
+<div id="left" class="dock">
+  <nav class="tabs">
+    <button data-tab="conn" class="active">接続</button>
+    <button data-tab="work">ワーク</button>
+    <button data-tab="wiring">配線</button>
+    <button data-tab="task">課題</button>
+  </nav>
+
+  <section data-pane="conn">
+    <div class="row"><b>通信先 PLC</b> <span id="connBadge" class="badge off">未接続</span></div>
+    <form id="connForm" class="grid">
+      <label class="wide">通信方式
+        <select name="protocol">
+          <option value="melsec">三菱 MELSEC（SLMP）</option>
+          <option value="keyence">KEYENCE KV（上位リンク）</option>
+          <option value="modbus">Modbus TCP</option>
+        </select>
+      </label>
+      <label class="wide" data-for="melsec keyence">機種<select name="profile"></select></label>
+      <label class="wide check" data-sim><input type="checkbox" name="simulator"> <span id="simLabel">シミュレータに接続</span></label>
+      <label class="wide" data-net>IP<input name="host"></label>
+      <label data-net>ポート<input name="port" type="number" min="1" max="65535"></label>
+      <label data-for="melsec keyence" data-net>通信<select name="transport"><option>Tcp</option><option>Udp</option></select></label>
+      <label data-for="modbus">Unit ID<input name="unitId" type="number" min="0" max="255"></label>
+      <label>入力先頭<input name="inputStart"></label>
+      <label>出力先頭<input name="outputStart"></label>
+      <label>周期ms<input name="intervalMs" type="number" min="10"></label>
+      <p class="hint wide" id="addrHint"></p>
+      <div class="btns">
+        <button type="submit" id="btnConnect">接続</button>
+        <button type="button" id="btnDisconnect">切断</button>
+      </div>
+    </form>
+    <div id="connMsg" class="msg"></div>
+    <p class="hint">操作方法は画面下の「？ ヘルプ」または <kbd>F1</kbd> で表示できます。</p>
+  </section>
+
+  <section data-pane="work" hidden>
+    <div class="screws">
+      <span>ビス</span>
+      <label><input type="checkbox" data-screw="0" checked>LS5</label>
+      <label><input type="checkbox" data-screw="1">LS4</label>
+      <label><input type="checkbox" data-screw="2" checked>LS3</label>
+      <label><input type="checkbox" data-screw="3" checked>端</label>
+    </div>
+    <div class="row small">品番（LS3=1, LS4=2, LS5=4）: <b id="hinban">5</b></div>
+    <div class="btns">
+      <button id="btnPlaceLeft">左端に置く</button>
+      <button id="btnPlaceCenter">中央に置く</button>
+      <button id="btnPlaceRight">右端に置く</button>
+    </div>
+    <div class="btns">
+      <button id="btnRemoveSel">選択を取り除く</button>
+      <button id="btnRemoveAll">全部取り除く</button>
+    </div>
+    <label class="switch small-switch"><input type="checkbox" id="multiWork"> 複数置けるようにする（検定の範囲外）</label>
+    <p class="hint">通常は検定と同じくワーク1個です（置き直すと入れ替わります）。ワークはクリックで選択、ドラッグで左右に移動。選択中のワークのビスをチェックで変更できます。</p>
+  </section>
+
+  <section data-pane="wiring" hidden>
+    <label class="field">配線練習用 PLC<select id="plcModel"></select></label>
+    <p class="hint">通信先 PLC（接続タブ）とは別に選べます。入出力は並び順（1〜16点目）で通信先の入力先頭・出力先頭からのデバイスに対応します。</p>
+    <label class="switch"><input type="checkbox" id="wiringMode"> 配線モード（ケーブルで結線）</label>
+    <p class="hint">OFF の間は標準割付（TB1〜16 → 入力 1〜16 点目、TB20〜33 → 出力 1〜14 点目）で内部結線されたものとして動きます。</p>
+    <div class="btns">
+      <button id="btnViewWiring">配線ビュー</button>
+      <button id="btnCheck">配線チェック</button>
+    </div>
+    <div class="btns">
+      <button id="btnAutoWire">標準配線を自動作成</button>
+      <button id="btnDelWire">選択ケーブル削除</button>
+      <button id="btnClearWire">全部外す</button>
+    </div>
+    <div id="wireMsg" class="row small"></div>
+    <div class="row small">ケーブル: <b id="wireCount">0</b> 本</div>
+    <ul id="checkResult" class="results"></ul>
+    <p class="hint">端子を2つ順にクリックで配線（Esc で取消）。ケーブルをクリックで選択 → Delete キーで削除。赤=+24V 黒=0V/COM 青=入力 黄=出力</p>
+  </section>
+
+  <section data-pane="task" hidden>
+    <select id="taskSelect"></select>
+    <pre id="taskDesc" class="desc"></pre>
+    <div class="timer"><span id="timer">00:00:00</span><span id="timerLimit" class="small"></span></div>
+    <div class="btns">
+      <button id="btnTimerStart">試験開始</button>
+      <button id="btnTimerStop">終了</button>
+      <button id="btnJudge">自動判定</button>
+      <button id="btnJudgeStop">判定中断</button>
+    </div>
+    <div id="judgeScore" class="row"></div>
+    <ul id="judgeLog" class="results"></ul>
+    <p class="hint">自動判定は PLC を接続し、作ったプログラムを RUN させてから実行してください。判定中は盤を自動で操作します。</p>
+  </section>
+</div>
+
+<div id="right" class="dock">
+  <div class="row"><b>I/O モニタ</b> <span class="small" id="ioMode"></span></div>
+  <table class="io"><thead><tr><th title="通信先 PLC のデバイス">通信先</th><th title="配線練習用 PLC の端子">端子</th><th>接続先</th><th></th></tr></thead><tbody id="ioIn"></tbody></table>
+  <table class="io"><thead><tr><th title="通信先 PLC のデバイス">通信先</th><th title="配線練習用 PLC の端子">端子</th><th>接続先</th><th></th></tr></thead><tbody id="ioOut"></tbody></table>
+  <p class="hint" id="outHint">未接続中は Y をクリックで手動ON/OFFできます</p>
+</div>
+
+<div id="views" class="dock">
+  <button id="btnOpen" title="ファイルを開く（Ctrl+O）">開く</button>
+  <button id="btnSave" title="上書き保存（Ctrl+S）">保存</button>
+  <button id="btnSaveAs" title="名前を付けて保存（Ctrl+Shift+S）">名前を付けて保存</button>
+  <span class="sep"></span>
+  <button data-view="home">全体</button>
+  <button data-view="front">正面</button>
+  <button data-view="top">真上</button>
+  <button data-view="tb">端子台</button>
+  <button data-view="wiring">配線</button>
+  <button data-view="conv">コンベア</button>
+  <button data-view="ops">操作部</button>
+  <button id="btnHelp" class="help-btn" title="操作方法（F1 / ?）">？ ヘルプ</button>
+</div>
+<div id="fileBar"><span id="fileName"></span><span id="fileStatus"></span></div>
+
+<dialog id="help">
+  <header>
+    <h2>シーケンス道場 3D の操作方法</h2>
+    <button class="close" data-close aria-label="閉じる">✕</button>
+  </header>
+  <nav class="help-nav">
+    <a href="#h-view">視点</a><a href="#h-panel">盤の操作</a><a href="#h-screen">画面</a>
+    <a href="#h-file">ファイル</a><a href="#h-conn">接続</a><a href="#h-work">ワーク</a><a href="#h-wiring">配線</a>
+    <a href="#h-task">課題</a><a href="#h-io">I/O モニタ</a><a href="#h-key">キー</a>
+  </nav>
+  <div class="help-body">
+    <section id="h-view">
+      <h3>視点の操作</h3>
+      <table>
+        <tr><th>部品以外を左ドラッグ</th><td>回転</td></tr>
+        <tr><th>右ドラッグ</th><td>平行移動</td></tr>
+        <tr><th>マウスホイール</th><td>ズーム</td></tr>
+        <tr><th><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></th><td>平行移動（←→: 左右、↑↓: 前後）</td></tr>
+        <tr><th><kbd>Shift</kbd>＋カーソルキー</th><td>回転</td></tr>
+        <tr><th><kbd>Ctrl</kbd>＋<kbd>↑</kbd> <kbd>↓</kbd> / <kbd>PageUp</kbd> <kbd>PageDown</kbd></th><td>ズーム</td></tr>
+        <tr><th>画面下のボタン</th><td>全体・正面・真上・端子台・配線・コンベア・操作部 の視点へ移動</td></tr>
+      </table>
+    </section>
+
+    <section id="h-panel">
+      <h3>作業盤の操作</h3>
+      <p>マウスカーソルが指の形になる場所が操作できる部品です。</p>
+      <table>
+        <tr><th>電源スイッチ</th><td>クリックで ON/OFF。OFF にすると盤の入出力がすべて止まります</td></tr>
+        <tr><th>PB1〜PB5</th><td>押している間だけ ON。<kbd>Shift</kbd>＋クリックで押しっぱなし（ロック）／解除</td></tr>
+        <tr><th>PB5（非常停止）</th><td>b 接点。押していないとき入力 ON、押すと OFF</td></tr>
+        <tr><th>SS0 手動・自動</th><td>クリックで切替（自動側で ON）</td></tr>
+        <tr><th>SS1 連続運転</th><td>クリックで切替（入側で ON）</td></tr>
+        <tr><th>DSW</th><td>▲ / ▼ をクリックで 0〜9 を増減（BCD で入力）</td></tr>
+        <tr><th>ワーク</th><td>クリックで選択、左右にドラッグで移動</td></tr>
+      </table>
+      <p class="note">コンベアは RY1 で左行、RY2 で右行。RY1 と RY2 はインターロックされ、先に ON した方が優先されます。</p>
+    </section>
+
+    <section id="h-screen">
+      <h3>画面の構成</h3>
+      <table>
+        <tr><th>左パネル</th><td>接続・ワーク・配線・課題 の 4 つのタブ</td></tr>
+        <tr><th>右パネル</th><td>I/O モニタ（PLC の X / Y の状態）</td></tr>
+        <tr><th>盤の奥</th><td>PLC（配線モードで使用）</td></tr>
+      </table>
+    </section>
+
+    <section id="h-file">
+      <h3>ファイル（保存・開く）</h3>
+      <ul>
+        <li>画面下の「保存」「名前を付けて保存」で、接続設定・配線練習用 PLC・配線・ワークを <code>*.sdojo</code> ファイルに保存します。「開く」で読み込みます。</li>
+        <li>保存していない変更があると、ウィンドウのタイトルに <code>*</code> が付き、閉じるときに確認します。</li>
+        <li>スイッチの位置・試験タイマー・判定結果はファイルに含みません。</li>
+      </ul>
+    </section>
+
+    <section id="h-conn">
+      <h3>接続タブ（通信先 PLC）</h3>
+      <ol>
+        <li>通信方式（三菱 MELSEC / KEYENCE KV / Modbus TCP）と機種を選びます。</li>
+        <li>IP・ポートを入力します。iQ-R / iQ-L の GX Simulator 3、KV-8000 / KV-X500 の KV STUDIO シミュレータは、チェックを入れるだけで接続先が設定されます。</li>
+        <li>入力先頭・出力先頭は、方式を切り替えたときの既定値（<code>X0</code> / <code>Y0</code>、<code>MR000</code> / <code>MR100</code>、<code>C0</code> / <code>C16</code>）のままでも使えます。</li>
+        <li>「接続」を押し、バッジが <span class="chip on">接続中</span> になれば完了です。</li>
+      </ol>
+      <p class="note">PLC が無くても、I/O モニタの出力の行をクリックすれば手動で ON/OFF できます。</p>
+    </section>
+
+    <section id="h-work">
+      <h3>ワークタブ</h3>
+      <ul>
+        <li>ビス（LS5・LS4・LS3・端）の有無を選び、「左端／中央／右端に置く」でワークを置きます。</li>
+        <li>品番は LS3＝1、LS4＝2、LS5＝4 の合計です。</li>
+        <li>選択中のワークは、チェックでビスを変更できます。</li>
+        <li>通常は検定と同じくワーク 1 個です。「複数置けるようにする」をオンにすると最大 4 個まで置けます（検定の範囲外）。</li>
+        <li>左端では LS2〜LS5、右端では LS1 が、ビスがあると ON になります。</li>
+      </ul>
+    </section>
+
+    <section id="h-wiring">
+      <h3>配線タブ</h3>
+      <ul>
+        <li>「配線練習用 PLC」で 3D の PLC の機種（FX5S / FX5U / Q / iQ-R）を選べます。通信先 PLC（接続タブ）とは別に指定できます。</li>
+        <li>「配線モード」を ON にすると、ケーブルどおりに回路が計算されます。OFF のときは標準割付で内部結線されたものとして動きます。</li>
+        <li>端子を 2 つ順にクリックすると配線できます。<kbd>Esc</kbd> で選択を取り消します。</li>
+        <li>ケーブルをクリックで選択し、<kbd>Delete</kbd> で削除します。</li>
+        <li>「配線チェック」で短絡・コモン未配線・未配線端子などを確認できます。</li>
+        <li>「標準配線を自動作成」で標準割付どおりの配線を一度に作れます。</li>
+      </ul>
+      <table>
+        <tr><th>入力コモン</th><td>S/S（Q / iQ-R は COM）に +24V（盤の TB+）。サービス電源の 24V を使う場合は、PLC の 0V と盤の TB− も配線</td></tr>
+        <tr><th>出力コモン</th><td>COM0〜COM3 を盤の 0V（TB−）へ</td></tr>
+        <tr><th>ケーブルの色</th><td><span class="wire r"></span>+24V　<span class="wire k"></span>0V・COM　<span class="wire b"></span>入力　<span class="wire y"></span>出力</td></tr>
+      </table>
+    </section>
+
+    <section id="h-task">
+      <h3>課題タブ</h3>
+      <ol>
+        <li>課題を選び、仕様を読みます。</li>
+        <li>「試験開始」でタイマーを開始します（標準時間を超えると黄、打切り時間を超えると赤）。</li>
+        <li>配線とプログラム作成を行い、PLC を RUN させます。</li>
+        <li>「自動判定」で盤が自動操作され、項目ごとに合否が出ます。判定中は盤に触れないでください。</li>
+      </ol>
+    </section>
+
+    <section id="h-io">
+      <h3>I/O モニタ</h3>
+      <ul>
+        <li>「通信先」は通信先 PLC のデバイス、「端子」は配線練習用 PLC の端子名、「接続先」はつながっている盤の機器です。</li>
+        <li>入出力は並び順（1〜16 点目）で対応します。例: 配線は FX5S の X0〜X17、通信先は iQ-R の X0〜XF。</li>
+        <li>PLC 未接続のときは、Y の行をクリックして手動で ON/OFF できます。</li>
+      </ul>
+    </section>
+
+    <section id="h-key">
+      <h3>キー操作</h3>
+      <table>
+        <tr><th><kbd>Ctrl</kbd>＋<kbd>S</kbd></th><td>上書き保存（<kbd>Ctrl</kbd>＋<kbd>Shift</kbd>＋<kbd>S</kbd>: 名前を付けて保存）</td></tr>
+        <tr><th><kbd>Ctrl</kbd>＋<kbd>O</kbd></th><td>ファイルを開く</td></tr>
+        <tr><th><kbd>F1</kbd> / <kbd>?</kbd></th><td>このヘルプを開く・閉じる</td></tr>
+        <tr><th><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd></th><td>視点の平行移動（<kbd>Shift</kbd>: 回転、<kbd>Ctrl</kbd>＋<kbd>↑</kbd><kbd>↓</kbd>: ズーム）</td></tr>
+        <tr><th><kbd>Esc</kbd></th><td>ヘルプを閉じる／配線の端子選択を取り消す</td></tr>
+        <tr><th><kbd>Delete</kbd></th><td>選択中のケーブルを削除</td></tr>
+        <tr><th><kbd>Shift</kbd>＋クリック</th><td>PB を押しっぱなしにする／解除</td></tr>
+      </table>
+    </section>
+  </div>
+  <footer>
+    <label><input type="checkbox" id="helpNoAuto"> 起動時に表示しない</label>
+    <button data-close>閉じる</button>
+  </footer>
+</dialog>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

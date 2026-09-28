@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect x="2" y="2" width="60" height="60" rx="8" fill="#c8241c"/>
+  <rect x="7" y="7" width="50" height="50" rx="4" fill="none" stroke="#f6e7d8" stroke-width="3"/>
+  <text x="32" y="45" text-anchor="middle" font-size="36" font-weight="700" fill="#f6e7d8"
+        font-family="Yu Mincho, YuMincho, Hiragino Mincho ProN, serif">道</text>
+</svg>

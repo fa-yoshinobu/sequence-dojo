@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!-- Windows アプリ（WinForms + WebView2）。サーバーは同じプロセス内で動く -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Product>シーケンス道場 3D</Product>
+    <AssemblyTitle>シーケンス道場 3D</AssemblyTitle>
+    <Version>0.2.0</Version>
+    <!-- IIS 用 web.config と静的 Web アセットのマニフェストは使わない -->
+    <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AMWD.Protocols.Modbus.Tcp" Version="0.6.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+    <PackageReference Include="PlcComm.KvHostLink" Version="4.2.0" />
+    <PackageReference Include="PlcComm.Slmp" Version="5.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 画面ファイルは exe の隣に置く。1 ファイル発行では exe に含め、起動時に展開する -->
+    <Content Update="wwwroot\**;appsettings.json" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="false" />
+    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
+  <!-- WebView2 パッケージは WPF 用アセンブリも参照するが、WinForms では不要（WindowsBase の競合警告の原因）なので外す -->
+  <Target Name="DropWebView2Wpf" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="'%(Filename)' == 'Microsoft.Web.WebView2.Wpf'" />
+    </ItemGroup>
+  </Target>
+
+</Project>
