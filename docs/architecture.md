@@ -7,7 +7,7 @@ Windows アプリ（`SequenceDojo.exe`）1 つの中で、画面とサーバー�
 ```
 SequenceDojo.exe
 ├─ MainForm（WinForms ウィンドウ）
-│   └─ WebView2 … 画面 wwwroot（js/app.js ほか、Three.js r170）
+│   └─ WebView2 … 画面 wwwroot（js/app.js ほか、Three.js r187）
 │        ⇅ WebSocket（ws://localhost:5087/ws）
 └─ WebServer（ASP.NET Core / Kestrel、127.0.0.1 のみ）
      └─ PlcService … 周期ループ
@@ -145,7 +145,7 @@ build.bat
 
 - `wwwroot` のファイルはビルド時に exe の隣（`bin\Release
 et9.0-windows\wwwroot`）へコピーされます。画面のファイルを編集したら `run.bat` で起動し直してください。
-- Three.js は `src/SequenceDojo/wwwroot/vendor/` に同梱しています（`three.module.js`、`addons/OrbitControls.js`）。更新する場合は npm の `three` パッケージから同じパスにコピーします。
+- Three.js は `src/SequenceDojo/wwwroot/vendor/` に同梱しています（`three.module.js`, `three.core.js`、`addons/OrbitControls.js`）。更新する場合は npm の `three` パッケージから同じパスにコピーします。
 - `build.bat` とリリース用ワークフロー（`.github/workflows/release.yml`）は自己完結・1 ファイル発行（`PublishSingleFile`、`IncludeAllContentForSelfExtract`、`EnableCompressionInSingleFile`）です。`wwwroot` と `appsettings.json` も exe に含め（csproj の `ExcludeFromSingleFile="false"`）、起動時に一時フォルダへ展開されます。
 - WebView2 パッケージが参照する WPF 用アセンブリは、WinForms では不要なので csproj のターゲットで参照から外しています。
 

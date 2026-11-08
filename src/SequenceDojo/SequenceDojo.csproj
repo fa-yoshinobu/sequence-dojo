@@ -3,7 +3,8 @@
   <PropertyGroup>
     <!-- Windows アプリ（WinForms + WebView2）。サーバーは同じプロセス内で動く -->
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RuntimeFrameworkVersion>10.0.14</RuntimeFrameworkVersion>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -17,8 +18,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AMWD.Protocols.Modbus.Tcp" Version="0.6.0" />
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+    <PackageReference Include="AMWD.Protocols.Modbus.Tcp" Version="0.7.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
     <PackageReference Include="PlcComm.KvHostLink" Version="4.2.0" />
     <PackageReference Include="PlcComm.Slmp" Version="5.2.0" />
   </ItemGroup>

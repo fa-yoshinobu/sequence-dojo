@@ -5,7 +5,7 @@
 ## 必要な環境
 
 - Windows 10 / 11
-- [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - Git（以下のソース取得コマンドを使う場合）
 
 ## ソースの取得
@@ -23,7 +23,7 @@ cd sequence-dojo
 .\run.bat
 ```
 
-Release 構成でビルドして、アプリのウィンドウを開きます（出力先は `src\SequenceDojo\bin\Release\net9.0-windows`）。
+Release 構成でビルドして、アプリのウィンドウを開きます（出力先は `src\SequenceDojo\bin\Release\net10.0-windows`）。
 画面のファイル（`src\SequenceDojo\wwwroot`）を編集したら、アプリを閉じて `run.bat` で起動し直してください。
 
 ## 配布用 EXE の作成

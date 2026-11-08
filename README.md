@@ -75,7 +75,7 @@ sequence-dojo/
 ├─ README.md
 ├─ docs/                   ドキュメント
 └─ src/
-   └─ SequenceDojo/        Windows アプリ（.NET 9、WinForms + WebView2 + ASP.NET Core）
+   └─ SequenceDojo/        Windows アプリ（.NET 10、WinForms + WebView2 + ASP.NET Core）
       ├─ Program.cs        起動処理（サーバー起動 → ウィンドウ表示 → 終了時に停止）
       ├─ MainForm.cs       メインウィンドウ（WebView2 で画面を表示）
       ├─ ProjectFiles.cs   プロジェクトファイル（*.sdojo）の保存・読込
@@ -92,7 +92,7 @@ sequence-dojo/
          │  ├─ wiring.js   配線モード（PLC モデル・ケーブル・回路計算）
          │  └─ tasks.js    課題モード（タイマー・自動判定）
          ├─ tasks/         課題ファイル（JSON）
-         └─ vendor/        Three.js（r170）
+         └─ vendor/        Three.js（r187）
 ```
 
 ## 使用ライブラリ
@@ -100,7 +100,7 @@ sequence-dojo/
 - [PlcComm.Slmp](https://plc-comm-docs-site.fa-labo.com/package-matrix/)（NuGet）: 三菱 MELSEC の SLMP 通信
 - [PlcComm.KvHostLink](https://plc-comm-docs-site.fa-labo.com/package-matrix/)（NuGet）: KEYENCE KV の上位リンク通信
 - [AMWD.Protocols.Modbus.Tcp](https://github.com/AM-WD/AMWD.Protocols.Modbus)（NuGet）: Modbus TCP 通信
-- [Three.js](https://threejs.org/) r170: 3D 描画（`wwwroot/vendor` に同梱。オフラインで動作）
+- [Three.js](https://threejs.org/) r187: 3D 描画（`wwwroot/vendor` に同梱。オフラインで動作）
 - [Microsoft Edge WebView2](https://learn.microsoft.com/microsoft-edge/webview2/)（NuGet: Microsoft.Web.WebView2）: ウィンドウ内での画面表示
 
 ## ライセンス

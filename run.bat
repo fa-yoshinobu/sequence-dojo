@@ -6,4 +6,4 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-start "" "src\SequenceDojo\bin\Release\net9.0-windows\SequenceDojo.exe"
+start "" "src\SequenceDojo\bin\Release\net10.0-windows\SequenceDojo.exe"
