@@ -4,6 +4,7 @@ using System.Net.WebSockets;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http.Features;
 using SequenceDojo.Plc;
 
 namespace SequenceDojo;
@@ -38,6 +39,7 @@ public static class WebServer
             ContentRootPath = AppContext.BaseDirectory,
         });
         builder.WebHost.ConfigureKestrel(k => k.Listen(IPAddress.Loopback, port));
+        builder.Logging.AddProvider(new DiagnosticLoggerProvider());
         builder.Services.AddSingleton<PlcService>();
         builder.Services.AddSingleton<BrowserSession>();
         var app = builder.Build();
@@ -47,6 +49,7 @@ public static class WebServer
         var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First();
         string url = address.Replace("127.0.0.1", "localhost") + "/";
         app.Services.GetRequiredService<BrowserSession>().Origin = new Uri(url).GetLeftPart(UriPartial.Authority);
+        app.Logger.LogInformation("画面サーバーを起動しました: {Url}", url);
         return (app, url);
     }
 
@@ -55,6 +58,7 @@ public static class WebServer
         var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         var plc = app.Services.GetRequiredService<PlcService>();
         var session = app.Services.GetRequiredService<BrowserSession>();
+        DiagnosticLog.Shared.RegisterSecret(session.Token);
         var sockets = new ConcurrentDictionary<WebSocket, SemaphoreSlim>();
         var projectClients = new ConcurrentDictionary<WebSocket, string>();
 
@@ -82,7 +86,14 @@ public static class WebServer
                 if (ws.State == WebSocketState.Open)
                     await ws.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
             }
-            catch { /* 切断済み */ }
+            catch (Exception error) when (error is WebSocketException or OperationCanceledException or ObjectDisposedException)
+            {
+                app.Logger.LogDebug(error, "切断した画面への送信を終了しました");
+            }
+            catch (Exception error)
+            {
+                app.Logger.LogError(error, "画面への送信に失敗しました");
+            }
             finally { gate.Release(); }
         }
 
@@ -102,6 +113,30 @@ public static class WebServer
 
         // 通信先 PLC の機種選択肢（MELSEC / KEYENCE はライブラリの機種一覧から）
         app.MapGet("/api/profiles", () => Results.Json(PlcLinks.Catalog(), json));
+
+        app.MapPost("/api/client-errors", async ctx =>
+        {
+            if (!session.Allows(ctx)) { ctx.Response.StatusCode = 403; return; }
+            if (ctx.Request.ContentLength > 16 * 1024) { ctx.Response.StatusCode = 413; return; }
+            if (ctx.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit)
+                limit.MaxRequestBodySize = 16 * 1024;
+            try
+            {
+                using var document = await JsonDocument.ParseAsync(ctx.Request.Body, cancellationToken: ctx.RequestAborted);
+                var root = document.RootElement;
+                if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("message", out var message)
+                    || message.ValueKind != JsonValueKind.String)
+                {
+                    ctx.Response.StatusCode = 400;
+                    return;
+                }
+                string text = message.GetString()!;
+                DiagnosticLog.Shared.Write("画面エラー: " + text[..Math.Min(text.Length, 2048)]);
+                ctx.Response.StatusCode = 204;
+            }
+            catch (JsonException) { ctx.Response.StatusCode = 400; }
+            catch (BadHttpRequestException error) { ctx.Response.StatusCode = error.StatusCode; }
+        });
 
         app.MapPost("/session", async ctx =>
         {
@@ -209,7 +244,10 @@ public static class WebServer
                     }
                 }
             }
-            catch (Exception ex) when (ex is WebSocketException or OperationCanceledException) { }
+            catch (Exception error) when (error is WebSocketException or OperationCanceledException)
+            {
+                app.Logger.LogDebug(error, "画面との受信を終了しました");
+            }
             finally
             {
                 projectClients.TryRemove(ws, out _);

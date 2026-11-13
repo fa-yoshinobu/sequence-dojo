@@ -9,7 +9,20 @@
 <script>
   // 画面の処理でエラーが起きたら上部に表示する（操作できなくなったときの手がかりにする）
   (() => {
+    const report = msg => {
+      // Native WebView2 and external browsers share the authenticated same-origin endpoint.
+      // Logging failure must not create another unhandled rejection/error notification.
+      try {
+        void fetch('/api/client-errors', {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: String(msg).slice(0, 2048) }),
+        }).catch(() => {});
+      } catch { /* 診断送信に失敗しても画面の処理は継続する。 */ }
+    };
+    globalThis.__dojoReportClientError = report;
     const show = msg => {
+      report(msg);
       let bar = document.getElementById('errorBar');
       if (!bar) {
         bar = document.createElement('div');

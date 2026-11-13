@@ -29,7 +29,7 @@ G2 の完了後は、追加したテスト（`dotnet test` と画面側のテス
 | G4 | 文書の記述がコードと一致している | 高 | 完了 |
 | G5 | 一時フォルダーへの全展開をやめる | 中 | 未着手 |
 | G6 | 起動済みでも `*.sdojo` のダブルクリックで開ける | 中 | 完了 |
-| G7 | 異常の原因がログに残る | 中 | 未着手 |
+| G7 | 異常の原因がログに残る | 中 | 完了 |
 | G8 | 最小化中も自動判定が正しく動く | 中 | 未着手 |
 | G9 | 配布版のEXEで課題を追加できる | 中 | 未着手 |
 | G10 | `app.js` を役割ごとに分ける | 中 | 完了 |
@@ -184,12 +184,12 @@ G2 の完了後は、追加したテスト（`dotnet test` と画面側のテス
 **対象**: `src/SequenceDojo/Program.cs`、`WebServer.cs`、`PlcService.cs`、`MainForm.cs`、`wwwroot/index.html`、`docs/usage.md`
 
 **完了条件**
-- [ ] ログを `%LOCALAPPDATA%\SequenceDojo\logs\` に保存し、サイズ上限つきで古い分を捨てる。
-- [ ] 記録するもの: 起動・終了、使用ポート、PLCへの接続・切断・通信エラー（接続先と例外の内容）、未処理例外、G1 で拒否した接続。
-- [ ] `Application.ThreadException`・`AppDomain.UnhandledException`・`TaskScheduler.UnobservedTaskException` を処理し、記録したうえでメッセージを表示する。
-- [ ] 画面側のエラー（`index.html` のエラーバーに出す内容）もログへ送る。
-- [ ] ヘルプまたは設定から、ログのフォルダーを開ける。
-- [ ] ログの書込みに失敗してもアプリが落ちない。
+- [x] ログを `%LOCALAPPDATA%\SequenceDojo\logs\` に保存し、サイズ上限つきで古い分を捨てる。
+- [x] 記録するもの: 起動・終了、使用ポート、PLCへの接続・切断・通信エラー（接続先と例外の内容）、未処理例外、G1 で拒否した接続。
+- [x] `Application.ThreadException`・`AppDomain.UnhandledException`・`TaskScheduler.UnobservedTaskException` を処理し、記録したうえでメッセージを表示する。
+- [x] 画面側のエラー（`index.html` のエラーバーに出す内容）もログへ送る。
+- [x] ヘルプまたは設定から、ログのフォルダーを開ける。
+- [x] ログの書込みに失敗してもアプリが落ちない。
 
 **検証**: 存在しないIPへ接続してエラーを出し、ログに接続先と原因が残る。
 

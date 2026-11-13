@@ -17,6 +17,7 @@ public sealed class PlcService : IAsyncDisposable
     private readonly SemaphoreSlim _wake = new(0, 1);
     private readonly Func<PlcConfig, CancellationToken, Task<IPlcLink>> _openLink;
     private readonly TimeProvider _timeProvider;
+    private readonly DiagnosticLog _diagnostics;
     private readonly bool[] _inputs = new bool[InputCount];
     private readonly bool[] _outputs = new bool[OutputCount];
     private PlcConfig _config = new();
@@ -31,10 +32,11 @@ public sealed class PlcService : IAsyncDisposable
 
     public PlcService() : this(PlcLinks.OpenAsync) { }
 
-    internal PlcService(Func<PlcConfig, CancellationToken, Task<IPlcLink>> openLink, TimeProvider? timeProvider = null)
+    internal PlcService(Func<PlcConfig, CancellationToken, Task<IPlcLink>> openLink, TimeProvider? timeProvider = null, DiagnosticLog? diagnostics = null)
     {
         _openLink = openLink;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _diagnostics = diagnostics ?? DiagnosticLog.Shared;
         _noSocketsSince = _timeProvider.GetTimestamp();
     }
 
@@ -80,6 +82,7 @@ public sealed class PlcService : IAsyncDisposable
                 var effective = PlcLinks.Normalize(config);
                 var link = await OpenAsync(effective, CancellationToken.None);
                 lock (_lock) _link = link;
+                _diagnostics.Write($"PLCへ接続しました: {link.Endpoint}");
                 _loopCts = new CancellationTokenSource();
                 var token = _loopCts.Token;
                 _loop = Task.Run(() => RunLoopAsync(link, effective, token));
@@ -87,6 +90,7 @@ public sealed class PlcService : IAsyncDisposable
             catch (Exception ex)
             {
                 lock (_lock) _error = $"接続失敗: {Describe(ex)}";
+                _diagnostics.Write($"PLC接続失敗: {config.Protocol} {config.Host}:{config.Port}", ex);
             }
             Publish();
         }
@@ -102,11 +106,18 @@ public sealed class PlcService : IAsyncDisposable
 
     private async Task DisconnectCoreAsync()
     {
+        string? endpoint;
+        lock (_lock) endpoint = _link?.Endpoint ?? (_loop != null ? $"{_config.Host}:{_config.Port}" : null);
         _loopCts?.Cancel();
         if (_loop != null)
         {
             try { await _loop; }
-            catch (Exception ex) { lock (_lock) _error = $"通信ループ終了: {Describe(ex)}"; }
+            catch (OperationCanceledException) when (_loopCts?.IsCancellationRequested == true) { }
+            catch (Exception ex)
+            {
+                lock (_lock) _error = $"通信ループ終了: {Describe(ex)}";
+                _diagnostics.Write($"PLC通信ループの終了に失敗: {endpoint}", ex);
+            }
         }
         _loop = null;
         _loopCts?.Dispose();
@@ -114,6 +125,7 @@ public sealed class PlcService : IAsyncDisposable
         IPlcLink? link;
         lock (_lock) { link = _link; _link = null; Array.Clear(_outputs); }
         if (link != null) await CloseAsync(link, clearInputs: true);
+        if (endpoint != null) _diagnostics.Write($"PLC通信を終了しました: {endpoint}");
         Publish();
     }
 
@@ -135,11 +147,19 @@ public sealed class PlcService : IAsyncDisposable
                 await link.WriteInputsAsync(new bool[InputCount], timeout.Token);
             }
         }
-        catch (Exception ex) { lock (_lock) _error = $"入力OFF書込み失敗: {Describe(ex)}"; }
+        catch (Exception ex)
+        {
+            lock (_lock) _error = $"入力OFF書込み失敗: {Describe(ex)}";
+            _diagnostics.Write($"PLC入力OFF書込みに失敗: {link.Endpoint}", ex);
+        }
         finally
         {
             try { await link.DisposeAsync(); }
-            catch (Exception ex) { lock (_lock) _error = $"切断失敗: {Describe(ex)}"; }
+            catch (Exception ex)
+            {
+                lock (_lock) _error = $"切断失敗: {Describe(ex)}";
+                _diagnostics.Write($"PLC切断に失敗: {link.Endpoint}", ex);
+            }
         }
     }
 
@@ -158,6 +178,7 @@ public sealed class PlcService : IAsyncDisposable
                 {
                     link = await OpenAsync(config, ct);
                     lock (_lock) _link = link;
+                    _diagnostics.Write($"PLCへ再接続しました: {link.Endpoint}");
                 }
                 bool[] inputs;
                 lock (_lock)
@@ -196,6 +217,7 @@ public sealed class PlcService : IAsyncDisposable
             catch (Exception ex)
             {
                 lock (_lock) { _error = $"通信エラー: {Describe(ex)}"; _link = null; }
+                _diagnostics.Write($"PLC通信エラー: {link?.Endpoint ?? $"{config.Host}:{config.Port}"}", ex);
                 if (link != null) await CloseAsync(link, clearInputs: true);
                 link = null;
                 lastWritten = null;

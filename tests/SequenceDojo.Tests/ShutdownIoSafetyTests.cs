@@ -10,8 +10,9 @@ public class ShutdownIoSafetyTests
     [InlineData(true)]
     public async Task StoppingDuringAnInFlightReadPreservesTheTransportForFinalOff(bool dispose)
     {
+        string folder = Directory.CreateTempSubdirectory("dojo-shutdown-io-").FullName;
         var link = new CancellationClosesTransportLink();
-        var service = new PlcService((_, _) => Task.FromResult<IPlcLink>(link));
+        var service = new PlcService((_, _) => Task.FromResult<IPlcLink>(link), diagnostics: new DiagnosticLog(folder));
         try
         {
             service.SetSocketCount(1);
@@ -31,6 +32,10 @@ public class ShutdownIoSafetyTests
         {
             link.FinishRead.TrySetResult();
             await service.DisposeAsync();
+            string full = Path.GetFullPath(folder);
+            Assert.Equal(Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.GetTempPath())), Path.GetDirectoryName(full), ignoreCase: true);
+            Assert.StartsWith("dojo-shutdown-io-", Path.GetFileName(full));
+            Directory.Delete(full, recursive: true);
         }
     }
 

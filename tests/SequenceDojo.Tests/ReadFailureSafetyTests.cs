@@ -12,8 +12,9 @@ public class ReadFailureSafetyTests
     [InlineData(true, true)]
     public async Task DisconnectDuringReadFailureWaitsForIndependentOffAttemptAndClose(bool dispose, bool failOff)
     {
+        string folder = Directory.CreateTempSubdirectory("dojo-read-failure-").FullName;
         var link = new FailingReadLink(failOff);
-        var service = new PlcService((_, _) => Task.FromResult<IPlcLink>(link));
+        var service = new PlcService((_, _) => Task.FromResult<IPlcLink>(link), diagnostics: new DiagnosticLog(folder));
         try
         {
             service.SetSocketCount(1);
@@ -33,6 +34,10 @@ public class ReadFailureSafetyTests
         {
             link.FinishOff.TrySetResult();
             await service.DisposeAsync();
+            string full = Path.GetFullPath(folder);
+            Assert.Equal(Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.GetTempPath())), Path.GetDirectoryName(full), ignoreCase: true);
+            Assert.StartsWith("dojo-read-failure-", Path.GetFileName(full));
+            Directory.Delete(full, recursive: true);
         }
     }
 

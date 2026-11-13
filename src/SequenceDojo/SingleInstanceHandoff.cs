@@ -44,7 +44,7 @@ internal sealed class SingleInstanceHandoff : IAsyncDisposable, IDisposable
                     try { accepted = receive(new UTF8Encoding(false, true).GetString(bytes)); }
                     catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
                     {
-                        System.Diagnostics.Debug.WriteLine(error);
+                        DiagnosticLog.Shared.Write("プロジェクト引継ぎの受付に失敗", error);
                         accepted = false;
                     }
                     await pipe.WriteAsync(new byte[] { accepted ? (byte)1 : (byte)0 }, timeout.Token);
@@ -53,7 +53,7 @@ internal sealed class SingleInstanceHandoff : IAsyncDisposable, IDisposable
                 catch (OperationCanceledException) when (_stop.IsCancellationRequested) { break; }
                 catch (Exception error) when (error is IOException or OperationCanceledException)
                 {
-                    System.Diagnostics.Debug.WriteLine(error);
+                    DiagnosticLog.Shared.Write("プロジェクト引継ぎの通信に失敗", error);
                 }
             }
         });

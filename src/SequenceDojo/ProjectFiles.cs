@@ -62,7 +62,11 @@ public sealed class ProjectFiles
             requestId = root.TryGetProperty("requestId", out var id) && id.ValueKind == JsonValueKind.String ? id.GetString() : null;
             content = root.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
         }
-        catch (JsonException) { return; }
+        catch (JsonException error)
+        {
+            DiagnosticLog.Shared.Write("画面からのファイル操作メッセージが不正", error);
+            return;
+        }
 
         // ファイル選択ダイアログはイベントの外で出す
         switch (type)
@@ -100,6 +104,7 @@ public sealed class ProjectFiles
         }
         catch (Exception ex)
         {
+            DiagnosticLog.Shared.Write("プロジェクトを開けませんでした", ex);
             Post(new { type = "file-error", message = $"ファイルを開けませんでした。\n{path}\n{ex.Message}" });
         }
     }
@@ -177,6 +182,7 @@ public sealed class ProjectFiles
         }
         catch (Exception ex)
         {
+            DiagnosticLog.Shared.Write("プロジェクトの保存に失敗", ex);
             Post(new { type = "file-error", message = $"保存できませんでした。\n{path}\n{ex.Message}" });
             SaveCompleted?.Invoke(false);
         }

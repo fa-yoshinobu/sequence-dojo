@@ -46,6 +46,8 @@ public sealed class MainForm : Form
         menu.Items.Add(_settingsMenu);
         _settingsMenu.DropDownItems.Add("*.sdojo の関連付けを登録", null, (_, _) => ChangeAssociation(true));
         _settingsMenu.DropDownItems.Add("*.sdojo の関連付けを解除", null, (_, _) => ChangeAssociation(false));
+        _settingsMenu.DropDownItems.Add(new ToolStripSeparator());
+        _settingsMenu.DropDownItems.Add("診断ログのフォルダーを開く", null, (_, _) => OpenDiagnosticFolder());
         MainMenuStrip = menu;
         Controls.Add(menu);
         Load += async (_, _) => await InitAsync();
@@ -57,7 +59,7 @@ public sealed class MainForm : Form
             _requests.Available -= ScheduleOpenRequests;
             if (_browserBootstrap == null) return;
             try { File.Delete(_browserBootstrap); }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { Debug.WriteLine(error); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { DiagnosticLog.Shared.Write("ブラウザー起動用一時ファイルの削除に失敗", error); }
         };
     }
 
@@ -70,15 +72,17 @@ public sealed class MainForm : Form
             var env = await CoreWebView2Environment.CreateAsync(null, dataDir);
             await _view.EnsureCoreWebView2Async(env);
         }
-        catch (WebView2RuntimeNotFoundException)
+        catch (WebView2RuntimeNotFoundException error)
         {
             if (_closing.IsCancellationRequested || IsDisposed) return;
+            DiagnosticLog.Shared.Write("WebView2ランタイムがないためブラウザーへ切替", error);
             FallBackToBrowser("この PC には Microsoft Edge WebView2 ランタイムが入っていないため、既定のブラウザで開きます。");
             return;
         }
         catch (Exception ex)
         {
             if (_closing.IsCancellationRequested || IsDisposed) return;
+            DiagnosticLog.Shared.Write("WebView2初期化に失敗したためブラウザーへ切替", ex);
             FallBackToBrowser($"画面の表示部品（WebView2）を初期化できなかったため、既定のブラウザで開きます。\n（{ex.Message}）");
             return;
         }
@@ -141,7 +145,11 @@ public sealed class MainForm : Form
             {
                 string dirty;
                 try { dirty = await _view.CoreWebView2.ExecuteScriptAsync("window.__dojoDirty ? window.__dojoDirty() : false"); }
-                catch { dirty = "false"; }
+                catch (Exception error)
+                {
+                    DiagnosticLog.Shared.Write("閉じる前の未保存状態確認に失敗", error);
+                    dirty = "true";
+                }
                 if (dirty != "true")
                 {
                     _closeConfirmed = true;
@@ -169,7 +177,11 @@ public sealed class MainForm : Form
     {
         if (IsDisposed || Disposing || !IsHandleCreated || _closing.IsCancellationRequested) return;
         try { BeginInvoke(ProcessOpenRequests); }
-        catch (InvalidOperationException error) { Debug.WriteLine(error); }
+        catch (InvalidOperationException error)
+        {
+            if (!_closing.IsCancellationRequested && !IsDisposed && !Disposing)
+                DiagnosticLog.Shared.Write("プロジェクト読込みの画面通知に失敗", error);
+        }
     }
 
     private async void ProcessOpenRequests()
@@ -188,7 +200,7 @@ public sealed class MainForm : Form
                 catch (OperationCanceledException) when (_closing.IsCancellationRequested) { return; }
                 catch (Exception error)
                 {
-                    Debug.WriteLine(error);
+                    DiagnosticLog.Shared.Write("プロジェクト読込みに失敗", error);
                     if (!_closing.IsCancellationRequested) MessageBox.Show(this, error.Message, AppTitle, MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
                 finally { _requests.Complete(path); }
@@ -209,7 +221,7 @@ public sealed class MainForm : Form
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Security.SecurityException or ArgumentException)
         {
-            Debug.WriteLine(error);
+            DiagnosticLog.Shared.Write("プロジェクトの関連付け変更に失敗", error);
             MessageBox.Show(this, error.Message, AppTitle, MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
@@ -266,13 +278,32 @@ public sealed class MainForm : Form
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
         {
+            DiagnosticLog.Shared.Write("外部ブラウザー起動の準備に失敗", error);
             MessageBox.Show(this, $"ブラウザ起動の準備ができませんでした。\n{error.Message}", AppTitle,
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void OpenDiagnosticFolder()
+    {
+        try
+        {
+            string path = DiagnosticLog.Shared.GetExistingDirectoryPath();
+            var start = new ProcessStartInfo("explorer.exe") { UseShellExecute = true };
+            start.ArgumentList.Add(path);
+            using var process = Process.Start(start);
+        }
+        catch (Exception error)
+        {
+            DiagnosticLog.Shared.Write("診断ログのフォルダーを開けませんでした", error);
+            MessageBox.Show(this, $"診断ログのフォルダーを開けませんでした。\n{error.Message}", AppTitle,
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
     private static void OpenExternal(string uri)
     {
-        try { Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true }); } catch { /* 開けなくても続行 */ }
+        try { Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true }); }
+        catch (Exception error) { DiagnosticLog.Shared.Write("外部ブラウザーまたはリンクの起動に失敗", error); }
     }
 }
