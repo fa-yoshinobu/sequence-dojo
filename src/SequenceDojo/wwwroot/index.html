@@ -123,7 +123,12 @@
       <label>入出力の接続<select id="plcTerminal"><option value="">すべて</option><option value="screw">ねじ止め式</option><option value="spring">差し込み式</option></select></label>
     </div>
     <div class="row small"><button id="btnResetPlcFilter">絞り込み解除</button> <span id="plcModelCount" role="status"></span></div>
-    <label class="field">配線練習用 PLC<select id="plcModel"></select></label>
+    <div class="field">配線練習用 PLC</div>
+    <details id="plcPicker" class="plc-picker">
+      <summary id="plcPickerSummary">型式を選択</summary>
+      <label for="plcModel" class="hint">型式一覧（クリック／Enterで確定）</label>
+      <select id="plcModel" size="8"></select>
+    </details>
     <p id="plcSelectedName" class="plc-model-name"></p>
     <p id="plcModelInfo" class="hint"></p>
     <details><summary>端子名・コモン対応</summary><div id="plcTerminalList" class="small"></div></details>

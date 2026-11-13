@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-13
+
+### Fixed
+
+- Show the PLC front close-up automatically when a model is selected.
+- Move the 3D model caption above the PLC, away from the wiring. Remove the redundant change caption and switch models without a wire-removal confirmation.
+- Focus the PLC candidate list when it opens and keep panel keyboard input from moving the 3D camera.
+- Use an in-page PLC model list that commits on a model click or Enter, without a separate apply button, native dropdown popup or window-focus switching. When closed, Up/Down switches the model and 3D view immediately; when open, arrows move the candidate selection.
+- Align PLC wire connection heights with the practice-board terminals and adjust the support height for each PLC body.
+
 ## [0.3.0] - 2026-11-13
 
 ### Added

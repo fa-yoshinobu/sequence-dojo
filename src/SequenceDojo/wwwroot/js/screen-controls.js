@@ -92,6 +92,25 @@ export function createScreenControls(st, view, hooks, store, restore) {
   }
   wiringModeBox.addEventListener('change', () => setWiringMode(wiringModeBox.checked));
   const plcModelSel = document.getElementById('plcModel');
+  const plcPicker = document.getElementById('plcPicker');
+  const plcSummary = document.getElementById('plcPickerSummary');
+  plcSummary.title = '↑↓で型式と3D表示を切替／クリックで一覧';
+  plcSummary.addEventListener('keydown', e => {
+    if (plcPicker.open || !['ArrowUp', 'ArrowDown'].includes(e.key)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.repeat || plcModelSel.disabled) return;
+    const ids = [...plcModelSel.options].filter(o => !o.disabled).map(o => o.value);
+    const current = ids.indexOf(wiring.modelId);
+    const next = current < 0 ? (e.key === 'ArrowDown' ? 0 : ids.length - 1)
+      : current + (e.key === 'ArrowDown' ? 1 : -1);
+    if (next < 0 || next >= ids.length) return;
+    plcModelSel.value = ids[next];
+    applyPlcModel();
+  });
+  plcPicker.addEventListener('toggle', () => {
+    if (plcPicker.open && !plcModelSel.disabled) plcModelSel.focus();
+  });
   const seriesFilter = document.getElementById('plcSeries');
   const outputFilter = document.getElementById('plcOutput');
   const terminalFilter = document.getElementById('plcTerminal');
@@ -124,6 +143,7 @@ export function createScreenControls(st, view, hooks, store, restore) {
   syncPlcModel();
   function showPlcDetails() {
     const m = wiring.model;
+    plcSummary.textContent = m.title;
     document.getElementById('plcSelectedName').textContent = `現在：${m.title}`;
     document.getElementById('plcModelInfo').textContent = `${m.title}：本体電源${m.powerSupply}（AC100V使用可）。DC24V入力${m.inputCount}点／${m.outputType === 'relay' ? '接点' : 'DC24V NPNシンク'}出力${m.outputCount}点。${m.terminalType}。${m.displayCpu ? `表示用構成：${m.displayPower}＋${m.displayCpu}。` : ''}練習では16入力・14出力を使用。形状と端子配置は練習用の簡略表示です。`;
     const rows = ['input', 'output'].map(side => {
@@ -143,24 +163,28 @@ export function createScreenControls(st, view, hooks, store, restore) {
   plcModelSel.addEventListener('pointerdown', () => recordPlcEvent('一覧を操作', `現在=${wiring.modelId} 配線=${wiring.wires.length}本`));
   plcModelSel.addEventListener('keydown', e => {
     if (!e.repeat && ['Enter',' ','ArrowUp','ArrowDown'].includes(e.key)) recordPlcEvent('一覧のキー操作', e.key);
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!e.repeat) applyPlcModel();
+    }
   });
   plcModelSel.addEventListener('blur', () => recordPlcEvent('一覧からフォーカス移動', `選択=${plcModelSel.value} 表示=${wiring.modelId}`));
-  plcModelSel.addEventListener('change', () => {
+  // size付きの一覧はWebView2の別ウィンドウのポップアップを使わない。
+  // 矢印キーで候補を移動しただけでは、型式や配線を変更しない。
+  plcModelSel.addEventListener('click', e => {
+    if (e.target.tagName === 'OPTION' && !e.target.disabled) applyPlcModel();
+  });
+  function applyPlcModel() {
+    if (plcModelSel.disabled || !Object.hasOwn(PLC_MODELS, plcModelSel.value)) return;
     const from = wiring.modelId, to = plcModelSel.value, savedWires = wiring.toJSON();
     recordPlcEvent('切替開始', `${from} → ${to} 配線=${savedWires.length}本`);
     try {
-      const removed = wiring.previewModelChange(to);
-      if (removed.length && !confirm(`「${PLC_MODELS[to].title}」に変更すると、次の${removed.length}本の配線が外れます。\n\n` +
-        removed.map(w => `${wiring.name(w.a)} → ${wiring.name(w.b)}`).join('\n') + '\n\n型式を変更しますか？（キャンセルで現在の配線を保持）')) {
-        renderPlcChoices();
-        recordPlcEvent('切替キャンセル', `${from} → ${to}`);
-        setWireMsg('型式変更をキャンセルしました。配線は変更していません。');
-        return;
-      }
       const dropped = wiring.setModel(to);
-      view.goView('wiring');
+      view.goView('plc');
       store('plcModel', wiring.modelId);
-      setWireMsg(dropped ? `機種を切り替えました（確認した配線 ${dropped} 本を外しました）` : '機種を切り替えました');
+      plcPicker.open = false;
+      plcSummary.focus({ preventScroll: true });
+      setWireMsg(dropped ? `機種を切り替えました（配線 ${dropped} 本を外しました）` : '機種を切り替えました');
       recordPlcEvent('切替完了', `${from} → ${wiring.modelId} 外した配線=${dropped}本`);
     } catch (error) {
       recordPlcEvent('切替エラー', `${from} → ${to}: ${error?.stack || error}`);
@@ -171,7 +195,7 @@ export function createScreenControls(st, view, hooks, store, restore) {
       } catch (restoreError) { recordPlcEvent('切替の復元エラー', String(restoreError)); }
       setWireMsg('型式を切り替えられませんでした。「型式切替の記録」を確認してください。');
     }
-  });
+  }
   wiring.onChange = () => {
     showPlcDetails();
     markDirty();

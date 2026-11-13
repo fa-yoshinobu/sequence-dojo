@@ -506,13 +506,15 @@ export function createBoardView(st, cur, hooks, restore) {
   }
 
   const isTyping = e => e.target instanceof Element && !!e.target.closest('input, select, textarea');
+  const isPanel = e => e.target instanceof Element && !!e.target.closest('.dock, dialog');
+  window.addEventListener('focusin', e => { if (isPanel(e) || isTyping(e)) navKeys.clear(); });
   window.addEventListener('keydown', e => {
     if (e.key === 'F1' || (e.key === '?' && !isTyping(e))) {
       e.preventDefault();
       hooks.toggleHelp();
       return;
     }
-    if (hooks.helpOpen() || isTyping(e)) return;
+    if (hooks.helpOpen() || isTyping(e) || isPanel(e)) { navKeys.clear(); return; }
     if (NAV_KEYS.has(e.key)) { e.preventDefault(); navKeys.add(e.key); navMods = { shift: e.shiftKey, ctrl: e.ctrlKey }; return; }
     if (e.key === 'Escape') { wiring.cancel(); wiring.select(null); hooks.setWireMsg(''); }
     if ((e.key === 'Delete' || e.key === 'Backspace') && wiring.selected) { wiring.removeWire(wiring.selected); hooks.setWireMsg('削除しました'); }

@@ -4,7 +4,7 @@ import { registerHooks } from 'node:module';
 const threeUrl = new URL('../../src/SequenceDojo/wwwroot/vendor/three.module.js', import.meta.url).href;
 
 test('app assembles the real UI, form, communication and project modules', async t => {
-  const elements = new Map(), intervals = [], frames = [], posted = [], messages = [], reports = [];
+  const elements = new Map(), intervals = [], frames = [], posted = [], messages = [], reports = [], windowEvents = {};
   class Element {
     constructor() { this.value = ''; this.checked = false; this.open = false; this.dataset = {}; this.listeners = {}; this.style = {}; this.classList = { toggle() {}, add() {} }; }
     addEventListener(type, callback) { (this.listeners[type] ??= []).push(callback); }
@@ -12,6 +12,7 @@ test('app assembles the real UI, form, communication and project modules', async
     querySelector() { return new Element(); }
     closest() { return this; }
     appendChild() {}
+    focus() { document.activeElement = this; }
     getContext() { return { measureText: () => ({width:100}), fillText() {}, fillRect() {} }; }
     showModal() { this.open = true; }
     close() { this.open = false; }
@@ -22,7 +23,7 @@ test('app assembles the real UI, form, communication and project modules', async
   const document = { getElementById:get, querySelector:() => new Element(), querySelectorAll:() => [], createElement:() => new Element(), addEventListener() {} };
   for (const [name,value] of Object.entries({ Element, document, window:globalThis, chrome:{webview:{postMessage:m => posted.push(m),addEventListener:(_,cb) => messages.push(cb)}},
     devicePixelRatio:1, location:{protocol:'http:',host:'localhost:5087'}, localStorage:{getItem() {throw new Error('storage read denied')},setItem() {throw new Error('storage write denied')},removeItem() {throw new Error('storage delete denied')}}, __dojoReportClientError:message => reports.push(message),
-    addEventListener() {}, removeEventListener() {}, alert:assert.fail, confirm:() => true,
+    addEventListener(type, callback) { (windowEvents[type] ??= []).push(callback); }, removeEventListener() {}, alert:assert.fail, confirm:() => true,
     setInterval:cb => {intervals.push(cb);return 0;}, setTimeout:() => 0, requestAnimationFrame:cb => frames.push(cb),
     fetch:async url => { if (url.includes('profiles')) throw new Error('catalog unavailable'); return {json:async () => []}; },
     WebSocket:class { static OPEN = 1; readyState = 1; send() {} }
@@ -48,6 +49,16 @@ test('app assembles the real UI, form, communication and project modules', async
     assert.equal(globalThis.__dojo.st.config.protocol, 'melsec');
     const { PLC_MODELS } = await import('../../src/SequenceDojo/wwwroot/js/plc-models.js');
     const wiring = globalThis.__dojo.wiring;
+    get('plcPicker').open = true;
+    get('plcPicker').listeners.toggle[0]();
+    assert.equal(document.activeElement, get('plcModel'));
+    const summary = get('plcPickerSummary');
+    summary.closest = selector => selector.includes('.dock') ? summary : null;
+    globalThis.__dojo.navKeys.add('ArrowLeft');
+    for (const handler of windowEvents.focusin) handler({target:summary});
+    assert.equal(globalThis.__dojo.navKeys.size, 0);
+    for (const handler of windowEvents.keydown) handler({target:summary,key:'ArrowDown',preventDefault:assert.fail});
+    assert.equal(globalThis.__dojo.navKeys.size, 0);
     for (const id of Object.keys(PLC_MODELS)) {
       const predicted = wiring.previewModelChange(id).length;
       assert.equal(wiring.setModel(id), predicted, `${id}: dropped wire preview`);
@@ -56,6 +67,10 @@ test('app assembles the real UI, form, communication and project modules', async
         if (term.key) assert.ok(wiring.terms.has(term.key), `${id}: ${term.key}`);
       assert.ok(wiring.check().every(r => r.level === 'ok'), id);
       for (const t of wiring.terms.values()) assert.ok(Number.isFinite(t.pos.x) && Number.isFinite(t.pos.z), id);
+      for (const [key, term] of wiring.terms) if (key.startsWith('P:')) {
+        assert.ok(Math.abs(term.pos.y - wiring.terms.get('T:1').pos.y) < 1e-9, `${id}: terminal height ${key}`);
+        assert.ok(Math.abs(term.pos.y - term.mesh.position.y - .8) < 1e-9, `${id}: wire anchor ${key}`);
+      }
       const savedWires = wiring.toJSON();
       wiring.load(savedWires);
       assert.deepEqual(wiring.toJSON(), savedWires, id);
@@ -64,28 +79,46 @@ test('app assembles the real UI, form, communication and project modules', async
     assert.equal(wiring.termY(14), '—');
     wiring.autoStandard();
     const before = wiring.toJSON();
-    let confirmation;
-    globalThis.confirm = message => { confirmation = message; return false; };
+    globalThis.confirm = () => assert.fail('型式切替は確認なしで反映する');
     get('plcModel').value = 'q';
-    get('plcModel').listeners.change[0]();
-    assert.match(confirmation, /3本/);
-    assert.match(confirmation, /PLC COM1/);
+    get('plcModel').listeners.keydown[0]({key:'ArrowDown'});
     assert.equal(wiring.modelId, 'fx5s');
     assert.deepEqual(wiring.toJSON(), before);
-    assert.equal(get('plcModel').value, 'fx5s');
-    globalThis.confirm = () => true;
-    get('plcModel').value = 'q';
-    get('plcModel').listeners.change[0]();
+    get('plcModel').listeners.click[0]({target:{tagName:'OPTGROUP'}});
+    assert.equal(wiring.modelId, 'fx5s');
+    get('plcModel').listeners.click[0]({target:{tagName:'OPTION',disabled:true}});
+    assert.equal(wiring.modelId, 'fx5s');
+    get('plcModel').listeners.click[0]({target:{tagName:'OPTION'}});
+    assert.equal(wiring.modelId, 'q');
+    assert.equal(wiring.wires.length, before.length - 3);
+    get('plcModel').value = 'fx5s';
+    get('plcPicker').open = true;
+    get('plcModel').listeners.keydown[0]({key:'Enter',repeat:true,preventDefault(){}});
+    assert.equal(wiring.modelId, 'q');
+    get('plcModel').listeners.keydown[0]({key:'Enter',preventDefault(){}});
+    assert.equal(get('plcPicker').open, false);
+    assert.equal(wiring.modelId, 'fx5s');
+    get('plcModel').options = [{value:'',disabled:true},{value:'fx5s'},{value:'q'}];
+    const arrow = (key, repeat = false) => summary.listeners.keydown[0]({key,repeat,preventDefault(){},stopPropagation(){}});
+    arrow('ArrowUp');
+    assert.equal(wiring.modelId, 'fx5s');
+    arrow('ArrowDown', true);
+    assert.equal(wiring.modelId, 'fx5s');
+    arrow('ArrowDown');
+    assert.match(get('plcPickerSummary').textContent, /QX40/);
+    assert.doesNotMatch(summary.textContent, /変更/);
+    assert.equal(wiring.modelId, 'q');
+    assert.equal(document.activeElement, summary);
+    arrow('ArrowDown');
     assert.equal(wiring.modelId, 'q');
     assert.equal(wiring.wires.length, before.length - 3);
     const qWires = wiring.toJSON(), setModel = wiring.setModel;
     wiring.setModel = function(id) { if (id === 'fx5u') throw new Error('synthetic switch failure'); return setModel.call(this,id); };
     get('plcModel').value = 'fx5u';
-    get('plcModel').listeners.change[0]();
+    get('plcModel').listeners.click[0]({target:{tagName:'OPTION'}});
     wiring.setModel = setModel;
     assert.equal(wiring.modelId, 'q');
     assert.deepEqual(wiring.toJSON(), qWires);
-    assert.match(get('plcEvents').textContent, /切替キャンセル/);
     assert.match(get('plcEvents').textContent, /切替完了/);
     assert.match(get('plcEvents').textContent, /synthetic switch failure/);
     get('plcSeries').value = 'FX5S';

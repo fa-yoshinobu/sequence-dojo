@@ -15,8 +15,8 @@ import { PLC_MODELS, DEFAULT_MODEL, buildCircuit, evaluateCircuit, checkCircuit 
 export { PLC_MODELS, DEFAULT_MODEL } from './wiring-circuit.js';
 const range = n => Array.from({ length: n }, (_, i) => i);
 
-// PLC の置き場所（盤の奥、天面が盤面と同じ高さになる台の上）
-const PLC = { x: 0, z: -265, w: 150, h: 83, d: 90 };
+// PLC の置き場所。配線端子の高さを作業盤側の端子に合わせる。
+const PLC = { x: 0, z: -265 };
 const COLORS = { plus: 0xd42a2a, minus: 0x2b2b2b, input: 0x2f6fd6, output: 0xe0c020 };
 
 // 射出成形カバーの面取り。寸法はboxと同じで、正面は+Y。
@@ -91,9 +91,13 @@ export class Wiring {
     this.modelId = id;
     this.model = PLC_MODELS[id];
     this.leds = { x: [], y: [] };
-    box(this.plcGroup, 170, -PLC.h + 145, 120, mat(0x8a9099), PLC.x, (-145 + (-PLC.h)) / 2, PLC.z); // 台
     if (this.model.layout === 'modules') this.#buildModules();
     else this.#buildCompact();
+    const lift = (this.terms.get('T:1')?.pos.y ?? 20) - this.terms.get('P:IN0').pos.y;
+    for (const part of this.plcGroup.children) part.position.y += lift;
+    for (const [key, term] of this.terms) if (key.startsWith('P:')) term.pos.y += lift;
+    const bottom = (this.model.layout === 'modules' ? -125 : -this.model.depth) + lift;
+    box(this.plcGroup, 170, bottom + 145, 120, mat(0x8a9099), PLC.x, (bottom - 145) / 2, PLC.z);
   }
 
   #ledMat() { return mat(0x1d3a22, { emissive: 0x000000 }); }
@@ -181,7 +185,7 @@ export class Wiring {
       label(g,text,sx-6,sz+i*4,{size:1.6,color:ink,y:5.7});
     }
     if(!slim&&!mxf) label(g,m.title,PLC.x+w*(fx5s?.24:.29),PLC.z+10,{size:fx5s?1.9:1.65,color:ink,y:5.7});
-    label(g,m.title,PLC.x,PLC.z+49,{size:3.3,y:2,bold:true,color:mxf?'#fff':'#222'});
+    label(g,m.title,PLC.x,PLC.z-56,{size:3.3,y:8,bold:true,color:'#fff'});
   }
 
   #ethernet(x,z,name) {
@@ -341,7 +345,7 @@ export class Wiring {
       // 16点TS端子台は正面下半分の2列。ねじ式は縦18点。
       this.#terminalGrid(terminalLayout(m,side),x,PLC.z+(spring?5:-height/2+25),spring?11:22,spring?37:height-32,spring);
     }
-    label(g,m.title,PLC.x,PLC.z+height/2+5,{size:3,y:2,bold:true,color:'#ddd'});
+    label(g,m.title,PLC.x,PLC.z-height/2-11,{size:3,y:8,bold:true,color:'#fff'});
   }
 
   #registerTerm(parent, key, pos, mesh, text) {
