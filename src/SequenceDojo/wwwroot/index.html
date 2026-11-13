@@ -55,6 +55,7 @@
   <div class="splash-hint">クリックでスキップ</div>
 </div>
 <div id="view"></div>
+<div id="terminalTooltip" role="tooltip" hidden></div>
 
 <div id="left" class="dock">
   <nav class="tabs">
@@ -116,12 +117,22 @@
   </section>
 
   <section data-pane="wiring" hidden>
+    <div class="grid plc-filters">
+      <label class="wide">シリーズ<select id="plcSeries"><option value="">すべて</option></select></label>
+      <label>出力方式<select id="plcOutput"><option value="">すべて</option><option value="relay">リレー</option><option value="sink">NPNシンク</option></select></label>
+      <label>入出力の接続<select id="plcTerminal"><option value="">すべて</option><option value="screw">ねじ止め式</option><option value="spring">差し込み式</option></select></label>
+    </div>
+    <div class="row small"><button id="btnResetPlcFilter">絞り込み解除</button> <span id="plcModelCount" role="status"></span></div>
     <label class="field">配線練習用 PLC<select id="plcModel"></select></label>
+    <p id="plcSelectedName" class="plc-model-name"></p>
+    <p id="plcModelInfo" class="hint"></p>
+    <details><summary>端子名・コモン対応</summary><div id="plcTerminalList" class="small"></div></details>
     <p class="hint">通信先 PLC（接続タブ）とは別に選べます。入出力は並び順（1〜16点目）で通信先の入力先頭・出力先頭からのデバイスに対応します。</p>
     <label class="switch"><input type="checkbox" id="wiringMode"> 配線モード（ケーブルで結線）</label>
     <p class="hint">OFF の間は標準割付（TB1〜16 → 入力 1〜16 点目、TB20〜33 → 出力 1〜14 点目）で内部結線されたものとして動きます。</p>
     <div class="btns">
       <button id="btnViewWiring">配線ビュー</button>
+      <button id="btnViewPlc">PLC正面拡大</button>
       <button id="btnCheck">配線チェック</button>
     </div>
     <div class="btns">
@@ -129,10 +140,12 @@
       <button id="btnDelWire">選択ケーブル削除</button>
       <button id="btnClearWire">全部外す</button>
     </div>
-    <div id="wireMsg" class="row small"></div>
+    <div id="wireMsg" class="row small" role="status"></div>
     <div class="row small">ケーブル: <b id="wireCount">0</b> 本</div>
     <ul id="checkResult" class="results"></ul>
     <p class="hint">端子を2つ順にクリックで配線（Esc で取消）。ケーブルをクリックで選択 → Delete キーで削除。赤=+24V 黒=0V/COM 青=入力 黄=出力</p>
+    <p class="hint">端子にポインターを合わせると、端子名・端子番号・コモンを表示します。配線モードOFFでも確認できます。</p>
+    <details><summary>型式切替の記録</summary><pre id="plcEvents" class="desc"></pre></details>
   </section>
 
   <section data-pane="task" hidden>
@@ -262,7 +275,10 @@
     <section id="h-wiring">
       <h3>配線タブ</h3>
       <ul>
-        <li>「配線練習用 PLC」で 3D の PLC の機種（FX5S / FX5U / Q / iQ-R）を選べます。通信先 PLC（接続タブ）とは別に指定できます。</li>
+        <li>「配線練習用 PLC」で AC100V電源対応の PLC（FX5S / FX5U / Q / iQ-R）を選べます。DC電源本体・EC仕様は対象外です。通信先 PLC（接続タブ）とは別に指定できます。</li>
+        <li>シリーズ・出力方式・端子の接続方式で絞り込めます。絞り込みだけでは型式や配線は変わりません。</li>
+        <li>「PLC正面拡大」で前面を拡大できます。端子にポインターを合わせると端子番号とコモンを表示します。</li>
+        <li>型式変更で外れる配線は変更前に確認できます。選択できない場合は「型式切替の記録」を確認してください。</li>
         <li>「配線モード」を ON にすると、ケーブルどおりに回路が計算されます。OFF のときは標準割付で内部結線されたものとして動きます。</li>
         <li>端子を 2 つ順にクリックすると配線できます。<kbd>Esc</kbd> で選択を取り消します。</li>
         <li>ケーブルをクリックで選択し、<kbd>Delete</kbd> で削除します。</li>
@@ -271,7 +287,7 @@
       </ul>
       <table>
         <tr><th>入力コモン</th><td>S/S（Q / iQ-R は COM）に +24V（盤の TB+）。サービス電源の 24V を使う場合は、PLC の 0V と盤の TB− も配線</td></tr>
-        <tr><th>出力コモン</th><td>COM0〜COM3 を盤の 0V（TB−）へ</td></tr>
+        <tr><th>出力コモン</th><td>機種の COM を盤の 0V（TB−）へ。外部電源 +V 端子があるNPN出力では +V を盤の +24V へ</td></tr>
         <tr><th>ケーブルの色</th><td><span class="wire r"></span>+24V　<span class="wire k"></span>0V・COM　<span class="wire b"></span>入力　<span class="wire y"></span>出力</td></tr>
       </table>
     </section>

@@ -2,7 +2,19 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-13
+
+### Added
+
+- Add 18 Mitsubishi wiring configurations across FX5S, FX5U, MELSEC-Q and iQ-R: AC100V-compatible power, 16 DC24V inputs, and 14–16 relay or NPN sink outputs, with matching screw or push-in terminal blocks.
+- Add series, output and terminal filters, a PLC front close-up, terminal/common tooltips and model-selection diagnostics.
+- Import terminal definitions from qet-io-builder and document the manufacturer references.
+
 ### Changed
+
+- Refine PLC covers, terminal blocks, CPU ports and power-unit colors using manufacturer photos and drawings; show model numbers without logos.
+- Preview disconnected wires before changing PLC models and preserve the current project when an unsupported saved model is opened.
+- Support importing, validating and saving custom practice tasks.
 
 - Monitor the pinned bundled runtime weekly against official stable releases without updating published assets.
 
@@ -13,6 +25,8 @@
 
 ### Fixed
 
+- Recover pointer capture after interrupted canvas gestures and restore the previous model and wires if model switching fails.
+- Keep simulation and task timing consistent while minimized, and harden browser policy configuration and fallback-port handling.
 - Verify the published executable version before packaging and confirm a release-body update after an ambiguous API error.
 - Explain when changed release assets require a new VirusTotal scan.
 

@@ -133,7 +133,7 @@ PLC 出力 plcY[16]      ─┘   配線モード OFF: x = closed、out = plcY[0
 | `seqdojo.wiringMode` | 配線モードの ON/OFF |
 | `seqdojo.tab` | 最後に開いたタブ |
 | `seqdojo.task` | 最後に選んだ課題 |
-| `seqdojo.plcModel` | 配線練習用 PLC の機種（`fx5s` / `fx5u` / `q` / `iqr`） |
+| `seqdojo.plcModel` | 配線練習用 PLC の機種（`plc-models.js` のモデルID。既存の `fx5s` / `fx5u` / `q` / `iqr` も維持） |
 | `seqdojo.helpNoAuto` | 起動時にヘルプを表示しない |
 
 端子キーの形式: 盤側 `T:1`〜`T:16`、`T:20`〜`T:33`、`T:+1`〜`T:+4`、`T:-1`〜`T:-4`／PLC 側（機種共通）`P:IN0`〜`P:IN15`（入力）、`P:INCOM`（入力コモン）、`P:OUT0`〜`P:OUT15`（出力）、`P:COM0`〜（出力コモン、グループ順）、`P:24V`・`P:0V`（サービス電源のある機種のみ）。PLC 側を並び順で持つので、配線練習用 PLC を切り替えても配線が残ります。
@@ -185,7 +185,7 @@ build.bat
 | やりたいこと | 変更箇所 |
 |---|---|
 | 盤の部品を追加・移動 | `js/board-view.js` の各部品ブロック。クリック可能にするには `interactive(mesh, action)` で登録し、`pointerdown` の `switch` に処理を追加 |
-| 配線練習用 PLC の機種を追加 | `js/wiring.js` の `PLC_MODELS` に定義を追加（端子名・入力コモン・出力コモンのグループ・サービス電源の有無・外形 `compact` / `modules`） |
+| 配線練習用 PLC の機種を追加 | `tools/import-plc-catalog.py` で図面生成の機種別JSONから取込。`js/plc-models.js` で練習用端子・コモン・外形へ変換（詳細は `wiring.md`） |
 | 判定条件のキーを追加 | `js/simulation.js` の `createTaskApi().observe()` |
 | 判定ステップを追加 | `js/tasks.js` の `TaskRunner.run()` |
 | 通信方式を追加 | `Plc/` に `IPlcLink` の実装を追加し、`PlcLinks.OpenAsync` と画面の `PROTOCOLS`（`js/connection-form.js`）に登録 |

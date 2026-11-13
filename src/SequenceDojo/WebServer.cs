@@ -146,7 +146,9 @@ public static class WebServer
                     return;
                 }
                 string text = message.GetString()!;
-                DiagnosticLog.Shared.Write("画面エラー: " + text[..Math.Min(text.Length, 2048)]);
+                bool isEvent = root.TryGetProperty("kind", out var kind)
+                    && kind.ValueKind == JsonValueKind.String && kind.GetString() == "event";
+                DiagnosticLog.Shared.Write((isEvent ? "画面操作: " : "画面エラー: ") + text[..Math.Min(text.Length, 2048)]);
                 ctx.Response.StatusCode = 204;
             }
             catch (JsonException) { ctx.Response.StatusCode = 400; }

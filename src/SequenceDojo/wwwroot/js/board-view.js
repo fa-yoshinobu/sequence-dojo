@@ -3,6 +3,7 @@ import { OrbitControls } from '../vendor/addons/OrbitControls.js';
 import { M, mat, box, cyl, label } from './gfx.js';
 import { Wiring, DEFAULT_MODEL } from './wiring.js';
 import { CONV, WORK, LS_X, bcd } from './simulation.js';
+import { recordPlcEvent } from './plc-diagnostics.js';
 export function createBoardView(st, cur, hooks, restore) {
   // ---------------------------------------------------------------- シーン
   const container = document.getElementById('view');
@@ -310,12 +311,25 @@ export function createBoardView(st, cur, hooks, restore) {
     top: [[0, 620, 1], [0, 0, 0]],
     tb: [[0, 170, -30], [0, 10, -131]],
     wiring: [[0, 300, 10], [0, -10, -200]],
+    plc: [[0, 260, -264.99], [0, 0, -265]],
     conv: [[0, 190, 190], [-10, 20, 48]],
     ops: [[0, 190, 290], [0, 0, 125]],
   };
   let tween = null;
   function goView(name) {
-    const [p, t] = VIEWS[name];
+    let [p, t] = VIEWS[name];
+    if (name === 'wiring') {
+      const scale = Math.max(1, (wiring.model.width ?? 180) / 180);
+      p = [0, 300 * scale, -200 + 210 * scale];
+    }
+    if (name === 'plc') {
+      const h = container.clientHeight;
+      const docks = ['left','right'].reduce((sum, id) => sum + (document.getElementById(id)?.offsetWidth || 0), 0);
+      const availableWidth = Math.max(160, container.clientWidth - docks - 60);
+      const width = wiring.model.width ?? 170;
+      const distance = 1.15 * Math.max(width * h / availableWidth, 120 * h / Math.max(160, h - 150)) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
+      p = [0, Math.max(160, distance), -264.99];
+    }
     tween = { t: 0, p0: camera.position.clone(), t0: controls.target.clone(), p1: new THREE.Vector3(...p), t1: new THREE.Vector3(...t) };
   }
   camera.position.set(...VIEWS.home[0]);
@@ -325,6 +339,8 @@ export function createBoardView(st, cur, hooks, restore) {
   // ---------------------------------------------------------------- ポインタ操作
   const ray = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
+  const tooltip = document.getElementById('terminalTooltip');
+  const hideTooltip = () => { tooltip.hidden = true; };
   let pressed = null;   // 押している PB
   let dragWork = null;  // { work, dx }
   const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(CONV.top + WORK.h));
@@ -335,11 +351,11 @@ export function createBoardView(st, cur, hooks, restore) {
     if (st.wiringMode) list.push(...wiring.pickables, ...wiring.wirePickables);
     return list;
   }
-  function pick(e) {
+  function pick(e, inspectTerminal = false) {
     const r = renderer.domElement.getBoundingClientRect();
     ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera);
-    const hits = ray.intersectObjects(currentPickables(), false);
+    const hits = ray.intersectObjects(inspectTerminal ? wiring.pickables : currentPickables(), false);
     return hits[0]?.object.userData.action ?? null;
   }
   function rayX() {
@@ -349,21 +365,34 @@ export function createBoardView(st, cur, hooks, restore) {
 
   // マウスの取込み（ポインタキャプチャ）が残ると、以後のクリックが全部 3D 画面に吸われて
   // 左右のパネルが操作できなくなる。3D 画面以外を押したときは取込みを解除して、状態を戻す。
+  const capturedPointers = new Set();
+  renderer.domElement.addEventListener('gotpointercapture', e => capturedPointers.add(e.pointerId));
+  renderer.domElement.addEventListener('lostpointercapture', e => capturedPointers.delete(e.pointerId));
   function resetPointerState(pointerId) {
-    if (pointerId != null && renderer.domElement.hasPointerCapture?.(pointerId))
-      renderer.domElement.releasePointerCapture(pointerId);
+    for (const id of pointerId == null ? [...capturedPointers] : [pointerId]) {
+      if (renderer.domElement.hasPointerCapture?.(id)) {
+        // OrbitControls側のドラッグ状態も終了させる（ウィンドウ外でボタンを離した場合）。
+        renderer.domElement.dispatchEvent(new PointerEvent('pointercancel', { pointerId: id }));
+        if (renderer.domElement.hasPointerCapture(id)) renderer.domElement.releasePointerCapture(id);
+      }
+      capturedPointers.delete(id);
+    }
     if (pressed != null) { st.pb[pressed] = false; pressed = null; }
     dragWork = null;
     controls.enabled = true;
   }
   renderer.domElement.addEventListener('pointerdown', e => {
+    hideTooltip();
     const under = document.elementFromPoint(e.clientX, e.clientY);
     if (under && under !== renderer.domElement) {
       // 残っていた取込みで 3D 画面に届いたクリック。解除して、押した場所へ渡し直す
       e.stopImmediatePropagation();
       resetPointerState(e.pointerId);
+      recordPlcEvent('3Dのポインター取込みを解除', `押した要素=${under.id || under.tagName}`);
       under.focus?.();
-      under.click?.();
+      if (typeof under.showPicker === 'function') {
+        try { under.showPicker(); } catch (error) { recordPlcEvent('選択一覧の再表示エラー', String(error)); }
+      } else under.click?.();
       return;
     }
     controls.enabled = true;
@@ -419,7 +448,16 @@ export function createBoardView(st, cur, hooks, restore) {
       return;
     }
     renderer.domElement.style.cursor = pick(e) ? 'pointer' : '';
+    const terminal = !e.buttons && pick(e, true);
+    if (terminal?.type === 'term') {
+      tooltip.textContent = wiring.terminalDescription(terminal.key);
+      tooltip.hidden = false;
+      tooltip.style.left = `${Math.max(8, Math.min(e.clientX + 16, container.clientWidth - tooltip.offsetWidth - 12))}px`;
+      tooltip.style.top = `${Math.max(8, Math.min(e.clientY + 16, container.clientHeight - tooltip.offsetHeight - 12))}px`;
+    } else hideTooltip();
   });
+  renderer.domElement.addEventListener('pointerleave', hideTooltip);
+  controls.addEventListener?.('change', hideTooltip);
 
   window.addEventListener('pointerup', () => resetPointerState());
   window.addEventListener('pointercancel', e => resetPointerState(e.pointerId));

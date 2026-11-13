@@ -15,13 +15,14 @@ function setup(t) {
     t.after(() => previous ? Object.defineProperty(globalThis,name,previous) : delete globalThis[name]);
   }
   const st = createState(); st.config = {host:'original'};
-  const wiring = {modelId:'fx5s',toJSON:()=>[],load(){},setModel(){}};
+  const wireLoads = [];
+  const wiring = {modelId:'fx5s',toJSON:()=>[],load(wires){wireLoads.push(wires)},setModel(id){this.modelId=id}};
   const view = {wiring,clearWorks(){st.works=[]},createWork:(x,screws)=>({x,screws}),selectWork(){}};
   const ui = {plcModelSel:{},setWiringMode(){},setMultiWork:on=>{st.multiWork=on},multiWorkBox:el(),wiringModeBox:el(),screwBoxes:[]};
   const connection = {form:el(),readForm:()=>st.config,fillForm:async()=>{},normalizeConfig:c=>c};
   const projects = createProjects(st,view,ui,connection,{running:false},()=>{});
   projects.ready();
-  return {st,projects,native,alerts,acks,ack:m=>acks.push(m),elements};
+  return {st,projects,native,alerts,acks,ack:m=>acks.push(m),elements,wiring,wireLoads};
 }
 const request = content => ({requestId:'open-123',name:'next.sdojo',path:'next.sdojo',content:JSON.stringify(content)});
 test('cancelled inbound file keeps project and dirty state but completes the handoff', async t => {
@@ -41,4 +42,22 @@ test('invalid inbound file reports failure and completes the handoff', async t =
   const {st,projects,acks,ack,alerts} = setup(t);
   await projects.onOpened(request({format:'other'}),ack);
   assert.equal(st.config.host,'original'); assert.equal(alerts.length,1); assert.equal(acks.length,1);
+});
+
+for (const [model, reason] of [
+  ['FX5S-30MR/DS', 'DC電源'], ['MXF100-16-N32-EC', 'EC仕様'],
+  ['QX40+QY10-TS', '混在'], ['unknown-plc', '対応一覧'], ['__proto__', '対応一覧'],
+]) test(`unsupported saved model ${model} does not apply any project settings`, async t => {
+  const {st,projects,wiring,wireLoads,acks,ack,alerts,elements} = setup(t);
+  const work = {x:12,screws:[true,false,false,true]}; st.works=[work];
+  await projects.onOpened(request({format:'sequence-dojo',connection:{host:'new'},
+    wiring:{model,wires:[['T:1','P:IN0']]},works:{items:[]}}),ack);
+  assert.equal(st.config.host,'original');
+  assert.equal(st.works[0],work);
+  assert.equal(wiring.modelId,'fx5s');
+  assert.deepEqual(wireLoads,[]);
+  assert.equal(elements.get('fileName').textContent,'');
+  assert.equal(window.__dojoDirty(),false);
+  assert.ok(alerts[0].includes(model) && alerts[0].includes(reason));
+  assert.equal(acks.length,1);
 });

@@ -11,7 +11,7 @@
     <ApplicationIcon>app.ico</ApplicationIcon>
     <Product>シーケンス道場 3D</Product>
     <AssemblyTitle>シーケンス道場 3D</AssemblyTitle>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
     <!-- IIS 用 web.config と静的 Web アセットのマニフェストは使わない -->
     <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
     <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>

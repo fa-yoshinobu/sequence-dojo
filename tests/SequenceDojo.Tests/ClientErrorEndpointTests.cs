@@ -34,6 +34,18 @@ public class ClientErrorEndpointTests
         Assert.Empty(await response.Content.ReadAsStringAsync());
     });
 
+    [Fact]
+    public Task SelectionEventsAreLoggedAsOperationsRatherThanErrors() => WithServer(async (client, address, session) =>
+    {
+        string marker = "selection-test-" + Guid.NewGuid();
+        using var request = Request(address, session, JsonSerializer.Serialize(new { kind = "event", message = marker }));
+        using var response = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        string log = await File.ReadAllTextAsync(Path.Combine(DiagnosticLog.Shared.DirectoryPath, "sequence-dojo.log"));
+        Assert.Contains("画面操作: " + marker, log);
+        Assert.DoesNotContain("画面エラー: " + marker, log);
+    });
+
     [Theory]
     [InlineData("not json")]
     [InlineData("{}")]

@@ -1,4 +1,6 @@
 import { PLC_MODELS } from './wiring-circuit.js';
+import { terminalDetails, unsupportedModelReason } from './plc-models.js';
+import { recordPlcEvent, showPlcEvents } from './plc-diagnostics.js';
 export function createScreenControls(st, view, hooks, store, restore) {
   const { wiring, placeWork, removeWork, clearWorks } = view;
   const buildIoTables = () => hooks.buildIoTables();
@@ -90,20 +92,95 @@ export function createScreenControls(st, view, hooks, store, restore) {
   }
   wiringModeBox.addEventListener('change', () => setWiringMode(wiringModeBox.checked));
   const plcModelSel = document.getElementById('plcModel');
-  plcModelSel.innerHTML = Object.entries(PLC_MODELS).map(([id, m]) => `<option value="${id}">${m.name}</option>`).join('');
-  plcModelSel.value = wiring.modelId;
+  const seriesFilter = document.getElementById('plcSeries');
+  const outputFilter = document.getElementById('plcOutput');
+  const terminalFilter = document.getElementById('plcTerminal');
+  const seriesNames = [...new Set(Object.values(PLC_MODELS).map(m => m.series))];
+  seriesFilter.innerHTML = '<option value="">すべて</option>' + seriesNames.map(s => `<option>${s}</option>`).join('');
+  function renderPlcChoices() {
+    const choices = Object.entries(PLC_MODELS).filter(([, m]) =>
+      (!seriesFilter.value || m.series === seriesFilter.value) &&
+      (!outputFilter.value || m.outputType === outputFilter.value) &&
+      (!terminalFilter.value || m.terminalType.includes(terminalFilter.value === 'spring' ? '差し込み' : 'ねじ止め')));
+    plcModelSel.innerHTML = `<option value="" disabled>${choices.length ? '型式を選択' : '該当する型式がありません'}</option>` +
+      seriesNames.map(series => {
+        const items = choices.filter(([, m]) => m.series === series);
+        return items.length ? `<optgroup label="${series}">${items.map(([id, m]) => `<option value="${id}">${m.title}</option>`).join('')}</optgroup>` : '';
+      }).join('');
+    plcModelSel.disabled = !choices.length;
+    plcModelSel.value = choices.some(([id]) => id === wiring.modelId) ? wiring.modelId : '';
+    document.getElementById('plcModelCount').textContent = `${choices.length}件` +
+      (plcModelSel.value ? '' : '（現在の型式は変更していません）');
+  }
+  function syncPlcModel() {
+    seriesFilter.value = outputFilter.value = terminalFilter.value = '';
+    renderPlcChoices();
+  }
+  for (const el of [seriesFilter, outputFilter, terminalFilter]) el.addEventListener('change', () => {
+    renderPlcChoices();
+    recordPlcEvent('絞り込み', `${seriesFilter.value || '全系列'} / ${outputFilter.value || '全出力'} / ${terminalFilter.value || '全端子'}`);
+  });
+  document.getElementById('btnResetPlcFilter').onclick = syncPlcModel;
+  syncPlcModel();
+  function showPlcDetails() {
+    const m = wiring.model;
+    document.getElementById('plcSelectedName').textContent = `現在：${m.title}`;
+    document.getElementById('plcModelInfo').textContent = `${m.title}：本体電源${m.powerSupply}（AC100V使用可）。DC24V入力${m.inputCount}点／${m.outputType === 'relay' ? '接点' : 'DC24V NPNシンク'}出力${m.outputCount}点。${m.terminalType}。${m.displayCpu ? `表示用構成：${m.displayPower}＋${m.displayCpu}。` : ''}練習では16入力・14出力を使用。形状と端子配置は練習用の簡略表示です。`;
+    const rows = ['input', 'output'].map(side => {
+      const terms = m.terminals[side].filter(t => t.key);
+      return `<p>${side === 'input' ? '入力' : '出力'}</p><table class="io"><thead><tr><th>端子名</th><th>端子番号</th><th>コモン</th></tr></thead><tbody>${terms.map(t => {
+        const { common } = terminalDetails(m, t.key);
+        return `<tr><td>${t.label}</td><td>${t.pin || '—'}</td><td>${common}</td></tr>`;
+      }).join('')}</tbody></table>`;
+    }).join('');
+    document.getElementById('plcTerminalList').innerHTML = rows;
+  }
+  showPlcDetails();
+  showPlcEvents();
+  recordPlcEvent('画面初期化', wiring.modelId);
+  const savedModel = restore('plcModel', wiring.modelId);
+  if (!PLC_MODELS[savedModel]) setWireMsg(`以前の型式「${savedModel}」は対象外です。${unsupportedModelReason(savedModel)}。現在は${wiring.model.title}を表示しています。`);
+  plcModelSel.addEventListener('pointerdown', () => recordPlcEvent('一覧を操作', `現在=${wiring.modelId} 配線=${wiring.wires.length}本`));
+  plcModelSel.addEventListener('keydown', e => {
+    if (!e.repeat && ['Enter',' ','ArrowUp','ArrowDown'].includes(e.key)) recordPlcEvent('一覧のキー操作', e.key);
+  });
+  plcModelSel.addEventListener('blur', () => recordPlcEvent('一覧からフォーカス移動', `選択=${plcModelSel.value} 表示=${wiring.modelId}`));
   plcModelSel.addEventListener('change', () => {
-    const dropped = wiring.setModel(plcModelSel.value);
-    store('plcModel', wiring.modelId);
-    setWireMsg(dropped ? `機種を切り替えました（切替先に無い端子の配線 ${dropped} 本を外しました）` : '機種を切り替えました');
+    const from = wiring.modelId, to = plcModelSel.value, savedWires = wiring.toJSON();
+    recordPlcEvent('切替開始', `${from} → ${to} 配線=${savedWires.length}本`);
+    try {
+      const removed = wiring.previewModelChange(to);
+      if (removed.length && !confirm(`「${PLC_MODELS[to].title}」に変更すると、次の${removed.length}本の配線が外れます。\n\n` +
+        removed.map(w => `${wiring.name(w.a)} → ${wiring.name(w.b)}`).join('\n') + '\n\n型式を変更しますか？（キャンセルで現在の配線を保持）')) {
+        renderPlcChoices();
+        recordPlcEvent('切替キャンセル', `${from} → ${to}`);
+        setWireMsg('型式変更をキャンセルしました。配線は変更していません。');
+        return;
+      }
+      const dropped = wiring.setModel(to);
+      view.goView('wiring');
+      store('plcModel', wiring.modelId);
+      setWireMsg(dropped ? `機種を切り替えました（確認した配線 ${dropped} 本を外しました）` : '機種を切り替えました');
+      recordPlcEvent('切替完了', `${from} → ${wiring.modelId} 外した配線=${dropped}本`);
+    } catch (error) {
+      recordPlcEvent('切替エラー', `${from} → ${to}: ${error?.stack || error}`);
+      try {
+        wiring.setModel(from);
+        wiring.load(savedWires);
+        renderPlcChoices();
+      } catch (restoreError) { recordPlcEvent('切替の復元エラー', String(restoreError)); }
+      setWireMsg('型式を切り替えられませんでした。「型式切替の記録」を確認してください。');
+    }
   });
   wiring.onChange = () => {
+    showPlcDetails();
     markDirty();
     store('wires', wiring.toJSON());
     document.getElementById('wireCount').textContent = wiring.wires.length;
     buildIoTables();
   };
   document.getElementById('btnViewWiring').onclick = () => view.goView('wiring');
+  document.getElementById('btnViewPlc').onclick = () => view.goView('plc');
   document.getElementById('btnAutoWire').onclick = () => {
     if (wiring.wires.length && !confirm('今の配線を消して標準配線を作りますか？')) return;
     wiring.autoStandard();
@@ -123,5 +200,5 @@ export function createScreenControls(st, view, hooks, store, restore) {
   };
 
 
-  return { runSplash, toggleHelp, helpOpen: () => helpDlg.open, showTab, screwBoxes, updateHinban, setMultiWork, multiWorkBox, setWiringMode, wiringModeBox, plcModelSel, setWireMsg, selectWork(w) { if (w) screwBoxes.forEach((b, i) => { b.checked = w.screws[i]; }); updateHinban(); } };
+  return { runSplash, toggleHelp, helpOpen: () => helpDlg.open, showTab, screwBoxes, updateHinban, setMultiWork, multiWorkBox, setWiringMode, wiringModeBox, plcModelSel, syncPlcModel, setWireMsg, selectWork(w) { if (w) screwBoxes.forEach((b, i) => { b.checked = w.screws[i]; }); updateHinban(); } };
 }

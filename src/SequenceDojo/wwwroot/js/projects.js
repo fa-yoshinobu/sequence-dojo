@@ -1,5 +1,7 @@
 import { PLC_MODELS } from './wiring-circuit.js';
 import { WORK, clamp, resolveWorks } from './simulation.js';
+import { unsupportedModelReason } from './plc-models.js';
+import { recordPlcEvent } from './plc-diagnostics.js';
 export function createProjects(st, view, ui, connection, runner, store) {
   const { wiring, createWork, clearWorks, selectWork } = view;
   const { plcModelSel, setWiringMode, setMultiWork, multiWorkBox, wiringModeBox, screwBoxes } = ui;
@@ -41,6 +43,12 @@ export function createProjects(st, view, ui, connection, runner, store) {
 
   async function applyProject(p) {
     if (p?.format !== PROJECT_FORMAT) throw new Error('シーケンス道場のファイルではありません。');
+    if (p.wiring && !Object.hasOwn(PLC_MODELS, p.wiring.model)) {
+      const id = String(p.wiring.model ?? '未指定').slice(0, 160);
+      const reason = unsupportedModelReason(p.wiring.model);
+      recordPlcEvent('対象外の保存型式', `${id}: ${reason}`);
+      throw new Error(`PLC型式「${id}」は読み込めません。\n${reason}\n現在の設定・配線は変更していません。元ファイルも変更していません。`);
+    }
     project.applying = true;
     try {
       const wasConnected = st.connected;
@@ -51,9 +59,12 @@ export function createProjects(st, view, ui, connection, runner, store) {
       }
       if (p.wiring) {
         if (PLC_MODELS[p.wiring.model]) {
+          const previous = wiring.modelId;
           wiring.setModel(p.wiring.model);
           plcModelSel.value = wiring.modelId;
+          ui.syncPlcModel?.();
           store('plcModel', wiring.modelId);
+          recordPlcEvent('保存型式を読込み', `${previous} → ${wiring.modelId}`);
         }
         wiring.load(p.wiring.wires ?? []);
         setWiringMode(!!p.wiring.mode);

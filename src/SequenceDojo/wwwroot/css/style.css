@@ -15,6 +15,12 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
   font: 13px/1.4 "Yu Gothic UI", "Meiryo", system-ui, sans-serif; overflow: hidden; }
 #view { position: fixed; inset: 0; }
 #view canvas { display: block; }
+#terminalTooltip { position: fixed; z-index: 30; pointer-events: none; white-space: pre-wrap;
+  max-width: min(340px, calc(100vw - 24px)); padding: 8px 10px; border: 1px solid var(--accent);
+  border-radius: 6px; color: var(--fg); background: #101820; font-size: 13px; box-shadow: 0 3px 12px #0008; }
+.plc-model-name { margin: 6px 0; font-weight: 600; overflow-wrap: anywhere; }
+.plc-filters .wide { grid-column: span 2; }
+#plcEvents { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; }
 
 .dock { position: fixed; background: var(--dock); border: 1px solid var(--line); border-radius: 8px;
   padding: 6px 10px; backdrop-filter: blur(4px); max-height: calc(100vh - 70px - var(--port-notice-height, 0px)); overflow: auto; }
