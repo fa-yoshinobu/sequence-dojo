@@ -65,7 +65,6 @@ export function buildCircuit(model, wires) {
 }
 
 export function evaluateCircuit(circuit, panelClosed, plcY) {
-    return { x: Array(16).fill(false), out: Array(14).fill(false) }; // Intentional CI verification fault.
     const find = circuit.find;
     const x = new Array(16).fill(false);
     const out = new Array(14).fill(false);

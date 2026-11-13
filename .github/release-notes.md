@@ -7,14 +7,16 @@ Extract the ZIP file, then run `SequenceDojo.exe`.
 
 Requirements: Windows 10 or later (x64) and Microsoft Edge WebView2 Runtime. The .NET runtime is included.
 
-## Changes
-### Changed
-- Use a fixed-name Windows ZIP and SHA-256 checksum with English release notes and scan results.
-- Publish executables and distribution assets to `artifacts/release/` in local builds and CI.
+## Verification prerelease
+This prerelease validates the improvement branch. It is not the stable release and is not merged into main.
 
-### Fixed
-- Reject incomplete VirusTotal responses without a matching API-provided executable SHA-256.
-- Wait for the submitted VirusTotal analysis, verify all published executable hashes and preserve unrelated release notes during rescans.
+## Changes
+- Protect PLC WebSocket access with a per-launch session and exact origin checks.
+- Clear PLC inputs on disconnect and recover protocol connections after errors.
+- Serve embedded web assets from a single executable.
+- Hand project files to the running instance and keep bounded local diagnostics.
+- Keep task timing consistent while minimized and support importing custom tasks.
+- Add application tests, browser policy checks and release/runtime validation.
 
 <!-- virustotal:start -->
 {{VIRUSTOTAL_CONTENT}}
