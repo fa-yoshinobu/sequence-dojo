@@ -1,3 +1,4 @@
+import { sleep } from './timers.js';
 // 課題モード: 課題 JSON の読み込み、試験タイマー、シナリオによる自動判定
 //
 // シナリオのステップ（1ステップ1命令）
@@ -20,7 +21,6 @@ export const GRADE_TIME = { // 製作等作業試験 [標準, 打切り] 分
   3: [95, 115],
 };
 
-const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 export class TaskRunner {
   constructor(sim) {

@@ -1,3 +1,5 @@
+import { startInterval } from './timers.js';
+import { createSimulationClock } from './simulation-clock.js';
 import * as THREE from 'three';
 import { createState, createCurrent, stepSimulation, createTaskApi } from './simulation.js';
 import { createBoardView } from './board-view.js';
@@ -60,19 +62,14 @@ function buildIoTables() {
 
 // 入出力とコンベアは描画と独立して一定周期で回す（タブが裏でも判定が止まらない）
 let lastSent = '';
-let lastTick = performance.now();
-function simTick() {
-  const now = performance.now();
-  const dt = Math.min((now - lastTick) / 1000, 0.1);
-  lastTick = now;
-
+function simulateStep(dt) {
   const dir = stepSimulation(st, cur, dt, { evaluateWiring: (closed, y) => wiring.evaluate(closed, y), draggedWork: view.draggedWork });
   if (dir) view.moveBelt(dir, dt);
   const x = cur.x;
   const key = x.map(b => (b ? 1 : 0)).join('');
   if (key !== lastSent) { send({ type: 'inputs', bits: x }); lastSent = key; }
 }
-setInterval(simTick, 20);
+startInterval(createSimulationClock(simulateStep), 20);
 
 
 const clock = new THREE.Clock();
