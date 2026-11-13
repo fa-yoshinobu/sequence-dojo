@@ -53,7 +53,7 @@ dotnet build SequenceDojo.sln -c Release
 dotnet test SequenceDojo.sln -c Release --no-build
 ```
 
-`tests/SequenceDojo.Tests` は、通信設定の正規化、Modbusアドレス解析、偽PLCによる入力変更時の書込み・通信異常からの回復と、実ローカルサーバーへのWebSocket認証を検証します。サーバーはテストごとに空きポートで起動し、終了時に停止します。WebSocketはOriginと起動時cookieの両方が正しい場合だけ接続できることを確認します。外部ブラウザ用の `/session` は、不正トークンを拒否し、正規フォームからHttpOnly・SameSite Strictのcookieを設定することを検証します。
+`tests/SequenceDojo.Tests` は、通信設定の正規化、Modbusアドレス解析、偽PLCによる入力変更時の書込み・通信異常からの回復と、実ローカルサーバーへのWebSocket認証を検証します。サーバーはテストごとに空きポートで起動し、終了時に停止します。WebSocketはOriginと起動時cookieの両方が正しい場合だけ接続できることを確認します。外部ブラウザ用の `/session` は、不正トークンを拒否し、正規フォームからHttpOnly・SameSite Strictのcookieを設定することを検証します。不正JSONや入力配列を送った後も正規メッセージを処理できることを確認します。
 
 画面側のテストはNode.js 24で実行します。npmパッケージの追加は不要です。
 

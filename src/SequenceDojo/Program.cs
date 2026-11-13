@@ -41,9 +41,13 @@ internal static class Program
         }
         finally
         {
-            // PLC との通信も含めて止める
-            web.StopAsync().GetAwaiter().GetResult();
-            web.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            // Stop PLC writes before draining browser requests, including an external browser left open.
+            try { web.Services.GetRequiredService<PlcService>().DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+            finally
+            {
+                try { web.StopAsync().GetAwaiter().GetResult(); }
+                finally { web.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+            }
         }
     }
 

@@ -126,7 +126,11 @@ public static class WebServer
             if (!ctx.WebSockets.IsWebSocketRequest) { ctx.Response.StatusCode = 400; return; }
             using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
             var gate = new SemaphoreSlim(1, 1);
-            sockets[ws] = gate;
+            lock (sockets)
+            {
+                sockets[ws] = gate;
+                plc.SetSocketCount(sockets.Count);
+            }
             await SendAsync(ws, gate, new { type = "state", state = plc.Snapshot() });
 
             var buffer = new byte[16 * 1024];
@@ -135,34 +139,58 @@ public static class WebServer
                 while (ws.State == WebSocketState.Open)
                 {
                     using var ms = new MemoryStream();
+                    bool oversized = false;
                     WebSocketReceiveResult r;
                     do
                     {
                         r = await ws.ReceiveAsync(buffer, ctx.RequestAborted);
                         if (r.MessageType == WebSocketMessageType.Close) break;
-                        ms.Write(buffer, 0, r.Count);
+                        if (ms.Length + r.Count > 16 * 1024) oversized = true;
+                        if (!oversized) ms.Write(buffer, 0, r.Count);
                     } while (!r.EndOfMessage);
                     if (r.MessageType == WebSocketMessageType.Close) break;
-
-                    using var doc = JsonDocument.Parse(ms.ToArray());
-                    var root = doc.RootElement;
-                    switch (root.GetProperty("type").GetString())
+                    if (oversized || r.MessageType != WebSocketMessageType.Text) continue;
+                    try
                     {
-                        case "inputs":
-                            plc.SetInputs(root.GetProperty("bits").EnumerateArray().Select(e => e.GetBoolean()).ToArray());
-                            break;
-                        case "connect":
-                            var cfg = root.GetProperty("config").Deserialize<PlcConfig>(json) ?? new PlcConfig();
-                            await plc.ConnectAsync(cfg);
-                            break;
-                        case "disconnect":
-                            await plc.DisconnectAsync();
-                            break;
+                        using var doc = JsonDocument.Parse(ms.ToArray());
+                        var root = doc.RootElement;
+                        if (root.ValueKind != JsonValueKind.Object
+                            || !root.TryGetProperty("type", out var type) || type.ValueKind != JsonValueKind.String) continue;
+                        switch (type.GetString())
+                        {
+                            case "inputs":
+                                if (root.TryGetProperty("bits", out var bits) && bits.ValueKind == JsonValueKind.Array
+                                    && bits.GetArrayLength() == PlcService.InputCount
+                                    && bits.EnumerateArray().All(bit => bit.ValueKind is JsonValueKind.True or JsonValueKind.False))
+                                    plc.SetInputs(bits.EnumerateArray().Select(bit => bit.GetBoolean()).ToArray());
+                                break;
+                            case "connect":
+                                if (root.TryGetProperty("config", out var config) && config.ValueKind == JsonValueKind.Object)
+                                {
+                                    var cfg = config.Deserialize<PlcConfig>(json);
+                                    if (cfg != null) await plc.ConnectAsync(cfg);
+                                }
+                                break;
+                            case "disconnect":
+                                await plc.DisconnectAsync();
+                                break;
+                        }
+                    }
+                    catch (Exception error) when (error is JsonException or InvalidOperationException or ArgumentException or FormatException)
+                    {
+                        app.Logger.LogWarning("形式が不正なWebSocketメッセージを無視しました");
                     }
                 }
             }
             catch (Exception ex) when (ex is WebSocketException or OperationCanceledException) { }
-            finally { sockets.TryRemove(ws, out _); }
+            finally
+            {
+                lock (sockets)
+                {
+                    sockets.TryRemove(ws, out _);
+                    plc.SetSocketCount(sockets.Count);
+                }
+            }
         });
     }
 }
