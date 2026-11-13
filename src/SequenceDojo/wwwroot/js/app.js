@@ -23,7 +23,7 @@ const { camera, controls, navKeys, wiring } = view;
 const ui = createScreenControls(st, view, hooks, store, restore);
 Object.assign(hooks, { selectWork: ui.selectWork, setWireMsg: ui.setWireMsg, helpOpen: ui.helpOpen, toggleHelp: ui.toggleHelp, buildIoTables });
 const { runSplash, toggleHelp, showTab, updateHinban, setWiringMode, setMultiWork } = ui;
-const comm = createCommunications(st, { onOpen: () => { lastSent = ''; }, buildIoTables });
+const comm = createCommunications(st, { onOpen: () => { lastSent = ''; if (projects.isReady()) send({ type: 'project-ready' }); }, onFileOpened: m => projects.onOpened(m, send), buildIoTables });
 const { send, connectWs } = comm;
 const connection = createConnectionForm(st, { buildIoTables, send, setBadge: comm.setBadge }, store, restore);
 const { fillForm, deviceName } = connection;
@@ -91,7 +91,7 @@ try { localStorage.removeItem('seqdojo.multiWork'); } catch { } // 以前の版�
 showTab(restore('tab', 'conn'));
 updateHinban();
 loadTasks();
-fillForm().then(() => projects.ready());
+fillForm().then(() => { projects.ready(); send({ type: 'project-ready' }); });
 runSplash().then(() => { if (!restore('helpNoAuto', false)) toggleHelp(true); });
 connectWs();
 requestAnimationFrame(frame);

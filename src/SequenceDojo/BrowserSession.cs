@@ -7,6 +7,8 @@ namespace SequenceDojo;
 /// <summary>起動ごとの認証情報。URL・JavaScript・ログへトークンを渡さない。</summary>
 public sealed class BrowserSession
 {
+    internal BrowserProjectOpens ProjectOpens { get; } = new();
+
     public const string CookieName = "SequenceDojoSession";
     internal string Token { get; } = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
     internal string Origin { get; set; } = "";

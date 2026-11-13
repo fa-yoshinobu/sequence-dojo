@@ -13,11 +13,34 @@ internal static class Program
 
         // 2 重起動しない（設定の保存先が分かれないように）。起動済みならそのウィンドウを前面に出す
         using var mutex = new Mutex(true, @"Local\SequenceDojo3D", out var first);
+        string? file = args.FirstOrDefault(argument => !argument.StartsWith('-'));
         if (!first)
         {
+            if (file != null)
+            {
+                try
+                {
+                    if (!SingleInstanceHandoff.SendAsync(SingleInstanceHandoff.UserPipeName, Path.GetFullPath(file)).GetAwaiter().GetResult())
+                        throw new IOException("起動済みのアプリがファイルを受け付けませんでした。");
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or OperationCanceledException)
+                {
+                    MessageBox.Show($"ファイルを渡せませんでした。\n{error.Message}", "シーケンス道場 3D", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
             BringExistingToFront();
             return;
         }
+        var requests = new ProjectOpenQueue();
+        if (file != null)
+        {
+            try { requests.Enqueue(file); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                MessageBox.Show(error.Message, "シーケンス道場 3D", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        using var handoff = new SingleInstanceHandoff(SingleInstanceHandoff.UserPipeName, requests.Enqueue);
 
         WebApplication web;
         string url;
@@ -36,8 +59,7 @@ internal static class Program
         try
         {
             // 起動時に渡された *.sdojo（エクスプローラーでのドラッグ＆ドロップやファイルの関連付け）を開く
-            var file = args.FirstOrDefault(a => !a.StartsWith('-') && File.Exists(a));
-            Application.Run(new MainForm(url, web.Services.GetRequiredService<BrowserSession>(), file));
+            Application.Run(new MainForm(url, web.Services.GetRequiredService<BrowserSession>(), requests));
         }
         finally
         {

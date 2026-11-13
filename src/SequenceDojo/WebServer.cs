@@ -56,6 +56,22 @@ public static class WebServer
         var plc = app.Services.GetRequiredService<PlcService>();
         var session = app.Services.GetRequiredService<BrowserSession>();
         var sockets = new ConcurrentDictionary<WebSocket, SemaphoreSlim>();
+        var projectClients = new ConcurrentDictionary<WebSocket, string>();
+
+        void SendPendingProject()
+        {
+            foreach (var (socket, clientId) in projectClients)
+            {
+                if (!sockets.TryGetValue(socket, out var sendGate)) continue;
+                var payload = session.ProjectOpens.Claim(clientId);
+                if (payload == null) continue;
+                _ = SendAsync(socket, sendGate, payload);
+                break;
+            }
+        }
+        session.ProjectOpens.Pending += SendPendingProject;
+        app.Lifetime.ApplicationStopped.Register(() => session.ProjectOpens.Pending -= SendPendingProject);
+
 
         async Task SendAsync(WebSocket ws, SemaphoreSlim gate, object msg)
         {
@@ -125,6 +141,7 @@ public static class WebServer
             }
             if (!ctx.WebSockets.IsWebSocketRequest) { ctx.Response.StatusCode = 400; return; }
             using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
+            string projectClientId = Guid.NewGuid().ToString("N");
             var gate = new SemaphoreSlim(1, 1);
             lock (sockets)
             {
@@ -158,6 +175,16 @@ public static class WebServer
                             || !root.TryGetProperty("type", out var type) || type.ValueKind != JsonValueKind.String) continue;
                         switch (type.GetString())
                         {
+                            case "project-ready":
+                                session.ProjectOpens.Register(projectClientId);
+                                projectClients[ws] = projectClientId;
+                                SendPendingProject();
+                                break;
+                            case "file-open-completed":
+                                if (root.TryGetProperty("requestId", out var requestId)
+                                    && requestId.ValueKind == JsonValueKind.String && requestId.GetString() is { } id)
+                                    session.ProjectOpens.Complete(projectClientId, id);
+                                break;
                             case "inputs":
                                 if (root.TryGetProperty("bits", out var bits) && bits.ValueKind == JsonValueKind.Array
                                     && bits.GetArrayLength() == PlcService.InputCount
@@ -185,10 +212,26 @@ public static class WebServer
             catch (Exception ex) when (ex is WebSocketException or OperationCanceledException) { }
             finally
             {
+                projectClients.TryRemove(ws, out _);
+                session.ProjectOpens.Release(projectClientId);
                 lock (sockets)
                 {
                     sockets.TryRemove(ws, out _);
                     plc.SetSocketCount(sockets.Count);
+                }
+                if (ws.State == WebSocketState.CloseReceived)
+                {
+                    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    try
+                    {
+                        await gate.WaitAsync(timeout.Token);
+                        try { await ws.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "", timeout.Token); }
+                        finally { gate.Release(); }
+                    }
+                    catch (Exception error) when (error is WebSocketException or OperationCanceledException)
+                    {
+                        app.Logger.LogDebug(error, "画面との終了応答を完了できませんでした");
+                    }
                 }
             }
         });

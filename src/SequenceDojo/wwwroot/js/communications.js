@@ -8,6 +8,7 @@ export function createCommunications(st, hooks) {
     ws.onmessage = ev => {
       const m = JSON.parse(ev.data);
       if (m.type === 'state') applyServerState(m.state);
+      else if (m.type === 'file-opened') hooks.onFileOpened(m);
     };
     ws.onclose = () => { st.connected = false; setBadge('サーバ切断', 'err'); setTimeout(connectWs, 1500); };
   }

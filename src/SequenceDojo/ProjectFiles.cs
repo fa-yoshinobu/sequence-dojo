@@ -13,23 +13,35 @@ public sealed class ProjectFiles
 {
     public const string Extension = ".sdojo";
     private const string Filter = "シーケンス道場ファイル (*.sdojo)|*.sdojo|すべてのファイル (*.*)|*.*";
-    private const long MaxBytes = 5 * 1024 * 1024;
+    internal const long MaxBytes = 5 * 1024 * 1024;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private readonly Form _owner;
     private readonly CoreWebView2 _core;
+    private readonly NativePageAccess _pageAccess;
     private string? _pendingOpen;
     private string? _lastDir;
+    private readonly Dictionary<string, TaskCompletionSource> _openCompletions = [];
 
     /// <summary>保存が済んだとき（閉じる前の保存の続きに使う）。引数は成功したか。</summary>
     public event Action<bool>? SaveCompleted;
+    public event Action? Ready;
+    public bool IsReady { get; private set; }
 
-    public ProjectFiles(Form owner, CoreWebView2 core, string? startupFile)
+    public ProjectFiles(Form owner, CoreWebView2 core, string? startupFile, string expectedOrigin)
     {
         _owner = owner;
         _core = core;
+        _pageAccess = new NativePageAccess(expectedOrigin);
         _pendingOpen = startupFile;
         core.WebMessageReceived += OnMessage;
+        core.NavigationStarting += (_, e) =>
+        {
+            if (e.Cancel || !_pageAccess.Allows(e.Uri)) return;
+            IsReady = false;
+            foreach (var pending in _openCompletions.Values)
+                pending.TrySetException(new IOException("画面の再読込みでファイル読込みを中断しました。"));
+        };
     }
 
     /// <summary>画面に保存を頼む（閉じる前の「保存する」）。結果は <see cref="SaveCompleted"/>。</summary>
@@ -37,14 +49,17 @@ public sealed class ProjectFiles
 
     private void OnMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
-        string? type = null, path = null, name = null, content = null;
+        if (!_pageAccess.Allows(e.Source)) return;
+        string? type = null, path = null, name = null, content = null, requestId = null;
         try
         {
             using var doc = JsonDocument.Parse(e.WebMessageAsJson);
             var root = doc.RootElement;
-            type = root.TryGetProperty("type", out var t) ? t.GetString() : null;
+            if (root.ValueKind != JsonValueKind.Object) return;
+            type = root.TryGetProperty("type", out var t) && t.ValueKind == JsonValueKind.String ? t.GetString() : null;
             path = root.TryGetProperty("path", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
             name = root.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() : null;
+            requestId = root.TryGetProperty("requestId", out var id) && id.ValueKind == JsonValueKind.String ? id.GetString() : null;
             content = root.TryGetProperty("content", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
         }
         catch (JsonException) { return; }
@@ -53,7 +68,12 @@ public sealed class ProjectFiles
         switch (type)
         {
             case "ready":
+                IsReady = true;
+                Ready?.Invoke();
                 if (_pendingOpen != null) { var f = _pendingOpen; _pendingOpen = null; _owner.BeginInvoke(() => OpenPath(f)); }
+                break;
+            case "file-open-completed" when requestId != null:
+                if (_openCompletions.TryGetValue(requestId, out var completion)) completion.TrySetResult();
                 break;
             case "file-open":
                 _owner.BeginInvoke(ShowOpenDialog);
@@ -74,16 +94,55 @@ public sealed class ProjectFiles
     {
         try
         {
-            var info = new FileInfo(path);
-            if (info.Length > MaxBytes) throw new IOException("ファイルが大きすぎます（5 MB まで）。");
-            var content = File.ReadAllText(path, Encoding.UTF8);
-            _lastDir = info.DirectoryName;
-            Post(new { type = "file-opened", path = info.FullName, name = info.Name, content });
+            var payload = ReadPayload(path);
+            _lastDir = Path.GetDirectoryName(payload.Path);
+            Post(payload);
         }
         catch (Exception ex)
         {
             Post(new { type = "file-error", message = $"ファイルを開けませんでした。\n{path}\n{ex.Message}" });
         }
+    }
+
+    internal static string ValidatePath(string path)
+    {
+        string fullPath = Path.GetFullPath(path);
+        if (!string.Equals(Path.GetExtension(fullPath), Extension, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("開けるファイルは *.sdojo だけです。");
+        if (new FileInfo(fullPath).Length > MaxBytes) throw new IOException("ファイルが大きすぎます（5 MB まで）。");
+        return fullPath;
+    }
+
+    internal static string ReadContent(string path)
+    {
+        path = ValidatePath(path);
+        // Deny concurrent writers while checking and reading the same file handle.
+        using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        if (file.Length > MaxBytes) throw new IOException("ファイルが大きすぎます（5 MB まで）。");
+        using var reader = new StreamReader(file, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        return reader.ReadToEnd();
+    }
+
+    internal static CoreProjectPayload ReadPayload(string path)
+    {
+        path = ValidatePath(path);
+        return new CoreProjectPayload(Guid.NewGuid().ToString("N"), path, Path.GetFileName(path), ReadContent(path));
+    }
+
+    public async Task OpenAndWaitAsync(string path, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var payload = ReadPayload(path);
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _openCompletions.Add(payload.RequestId, completion);
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            _lastDir = Path.GetDirectoryName(payload.Path);
+            Post(payload);
+            await completion.Task.WaitAsync(ct);
+        }
+        finally { _openCompletions.Remove(payload.RequestId); }
     }
 
     private void Save(string? path, string? name, string content)

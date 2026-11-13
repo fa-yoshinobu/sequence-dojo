@@ -97,8 +97,9 @@ export function createProjects(st, view, ui, connection, runner, store) {
     updateTitle();
     setFileStatus(`保存しました: ${m.name}`);
   }
-  async function onOpened(m) {
+  async function onOpened(m, acknowledge) {
     try {
+      if (project.dirty && !confirm('保存されていない変更があります。破棄して開きますか？')) return;
       await applyProject(JSON.parse(m.content));
       project.path = m.path ?? null;
       project.name = m.name;
@@ -107,10 +108,11 @@ export function createProjects(st, view, ui, connection, runner, store) {
       setFileStatus(`開きました: ${m.name}`);
     } catch (e) {
       alert(`ファイルを開けませんでした。\n${e.message}`);
+    } finally {
+      if (m.requestId) acknowledge?.({ type: 'file-open-completed', requestId: m.requestId });
     }
   }
   function openProject() {
-    if (project.dirty && !confirm('保存されていない変更があります。破棄して開きますか？')) return;
     if (host) { host.postMessage({ type: 'file-open' }); return; }
     const input = document.createElement('input');
     input.type = 'file';
@@ -125,7 +127,7 @@ export function createProjects(st, view, ui, connection, runner, store) {
     const m = e.data;
     switch (m?.type) {
       case 'file-saved': onSaved(m); break;
-      case 'file-opened': onOpened(m); break;
+      case 'file-opened': onOpened(m, reply => host.postMessage(reply)); break;
       case 'file-error': alert(m.message); break;
       case 'save-request': saveProject(false); break;   // 閉じる前の「保存する」
     }
@@ -149,5 +151,5 @@ export function createProjects(st, view, ui, connection, runner, store) {
     document.getElementById(id).addEventListener('click', markDirty);
 
 
-  return { markDirty, ready() { project.ready = true; updateTitle(); host?.postMessage({ type: 'ready' }); } };
+  return { markDirty, onOpened, isReady: () => project.ready, ready() { project.ready = true; updateTitle(); host?.postMessage({ type: 'ready' }); } };
 }
