@@ -139,7 +139,7 @@ __dojo.st.manualY[2] = true  // 未接続時に Y2 を手動 ON
 rem 開発中: ビルドして起動
 run.bat
 
-rem 配布用の 1 ファイル exe（publish\win-x64-single\SequenceDojo.exe、.NET 同梱）を作る
+rem 配布用の 1 ファイル exe（artifacts\release\SequenceDojo.exe、.NET 同梱）を作る
 build.bat
 ```
 

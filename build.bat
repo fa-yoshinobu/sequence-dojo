@@ -2,13 +2,13 @@
 setlocal
 
 rem シーケンス道場 3D のビルド
-rem   build.bat   単一ファイルの exe（.NET 同梱）を publish\win-x64-single に作成する
+rem   build.bat   単一ファイルの exe（.NET 同梱）を artifacts\release に作成する
 
 chcp 65001 >nul
 
 set "ROOT=%~dp0"
 set "PROJECT=%ROOT%src\SequenceDojo\SequenceDojo.csproj"
-set "PUBLISH_DIR=%ROOT%publish\win-x64-single"
+set "PUBLISH_DIR=%ROOT%artifacts\release"
 set "EXE_NAME=SequenceDojo.exe"
 set "EXE=%PUBLISH_DIR%\%EXE_NAME%"
 
@@ -27,12 +27,6 @@ if exist "%PUBLISH_DIR%" (
   tasklist /FI "IMAGENAME eq %EXE_NAME%" 2>nul | find /I "%EXE_NAME%" >nul
   if not errorlevel 1 (
     echo [error] %EXE_NAME% が起動しています。アプリを終了してから実行してください。
-    exit /b 1
-  )
-  rmdir /s /q "%PUBLISH_DIR%"
-  if exist "%PUBLISH_DIR%" (
-    echo [error] 出力フォルダを削除できません。フォルダを開いているアプリやエクスプローラーを閉じてください:
-    echo [error] "%PUBLISH_DIR%"
     exit /b 1
   )
 )
@@ -61,24 +55,8 @@ if not exist "%EXE%" (
   exit /b 1
 )
 
-for /f "delims=" %%F in ('dir /b /a-d "%PUBLISH_DIR%"') do (
-  if /i not "%%F"=="%EXE_NAME%" (
-    echo [build] 不要なファイルを削除: %%F
-    del /f /q "%PUBLISH_DIR%\%%F"
-  )
-)
-
-for /d %%D in ("%PUBLISH_DIR%\*") do (
-  echo [build] 不要なフォルダを削除: %%~nxD
-  rmdir /s /q "%%D"
-)
-
-for /f "delims=" %%F in ('dir /b "%PUBLISH_DIR%"') do (
-  if /i not "%%F"=="%EXE_NAME%" (
-    echo [error] 出力に exe 以外のファイルがあります: %%F
-    exit /b 1
-  )
-)
+powershell -NoProfile -Command "$ErrorActionPreference = 'Stop'; $zip = Join-Path $env:PUBLISH_DIR 'SequenceDojo-win-x64.zip'; Compress-Archive -LiteralPath @((Join-Path $env:PUBLISH_DIR 'SequenceDojo.exe')) -DestinationPath $zip -Force; $line = ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([IO.File]::ReadAllBytes($zip)))).Replace('-', '').ToLowerInvariant() + '  ' + [IO.Path]::GetFileName($zip) + [char]10; [IO.File]::WriteAllText($zip + '.sha256', $line, [Text.UTF8Encoding]::new($false))"
+if errorlevel 1 exit /b 1
 
 echo [build] 完了: "%EXE%"
 exit /b 0

@@ -1,6 +1,20 @@
-[Windows x64版をダウンロード（ZIP）]({{DOWNLOAD_URL}})
+## Download
+- [Windows x64 ZIP]({{DOWNLOAD_URL}})
+- [SHA-256 checksum]({{CHECKSUM_URL}})
 
-ZIPを展開し、`SequenceDojo.exe`を起動してください。.NETのインストールは不要です。画面の表示には Microsoft Edge WebView2 ランタイム（Windows 11 は標準搭載）を使用します。
+## Getting started
+Extract the ZIP file, then run `SequenceDojo.exe`.
+
+Requirements: Windows 10 or later (x64) and Microsoft Edge WebView2 Runtime. The .NET runtime is included.
+
+## Changes
+### Changed
+- Use a fixed-name Windows ZIP and SHA-256 checksum with English release notes and scan results.
+- Publish executables and distribution assets to `artifacts/release/` in local builds and CI.
+
+### Fixed
+- Reject incomplete VirusTotal responses without a matching API-provided executable SHA-256.
+- Wait for the submitted VirusTotal analysis, verify all published executable hashes and preserve unrelated release notes during rescans.
 
 <!-- virustotal:start -->
 {{VIRUSTOTAL_CONTENT}}

@@ -38,7 +38,7 @@
 
 ### 配布用の exe を作る
 
-`build.bat` を実行すると、**1 ファイルの exe**（`publish\win-x64-single\SequenceDojo.exe`、約 60MB）ができます。
+`build.bat` を実行すると、**1 ファイルの exe**（`artifacts\release\SequenceDojo.exe`、約 60MB）ができます。
 .NET と画面ファイルを exe に含めているので、配布先の PC に .NET をインストールする必要はありません。
 `SequenceDojo.exe` だけをコピーしてダブルクリックで起動します。詳しくは [docs/build.md](docs/build.md) を参照してください。
 
@@ -68,7 +68,7 @@ PC の外からは接続できません。ポート 5087 が使用中の場合�
 sequence-dojo/
 ├─ SequenceDojo.sln        ソリューション
 ├─ run.bat                 ビルドして起動
-├─ build.bat               配布用の 1 ファイル exe（publish\win-x64-single）を作成
+├─ build.bat               配布用の 1 ファイル exe（artifacts\release）を作成
 ├─ CHANGELOG.md            変更履歴
 ├─ .github/                リリース用の GitHub Actions と VirusTotal 検査スクリプト
 ├─ tests/release/          検査スクリプトのテスト
@@ -115,3 +115,13 @@ sequence-dojo/
 - 記載している製品名・シリーズ名は、各社の商標または登録商標です。
 - 実際の作業盤・検定会場の機材とは細部が異なります。
 - 同梱の課題はオリジナルの練習課題で、実際の検定課題ではありません。最新の試験情報は中央職業能力開発協会の公表資料で確認してください。
+
+## 配布・保守
+
+ローカルの配布物は `artifacts/release/` に作成します。`SequenceDojo.exe` を直接起動できます。
+
+次回の新形式リリースから、[Windows x64 ZIP](https://github.com/fa-yoshinobu/sequence-dojo/releases/latest/download/SequenceDojo-win-x64.zip) と [SHA-256](https://github.com/fa-yoshinobu/sequence-dojo/releases/latest/download/SequenceDojo-win-x64.zip.sha256) を配布します。過去の公開物は変更しません。
+
+[変更履歴](CHANGELOG.md) / [TODO](TODO.md) / [共通リリース仕様](https://github.com/fa-yoshinobu/release_standard)
+
+リリース本文とVirusTotalの表示は英語です。公開前に `.github/release-notes.md` のChangesを今回のCHANGELOGに合わせて更新します。公開済みZIPの再作成はせず、検査は `Scan release with VirusTotal` の `release_tag` で再実行できます。

@@ -32,17 +32,17 @@ Release 構成でビルドして、アプリのウィンドウを開きます（
 .\build.bat
 ```
 
-Windows x64 向けの単一ファイル EXE を作成します。出力先は `publish\win-x64-single` で、次の 1 ファイルだけを配置します。
+Windows x64 向けの単一ファイル EXE を作成します。出力先は `artifacts\release` で、次のEXE、および配布ZIP・SHA-256を配置します。
 
 ```text
-publish/win-x64-single/
+artifacts/release/
 └─ SequenceDojo.exe
 ```
 
 EXE は .NET ランタイムと画面ファイルを含む単一ファイル（約 60 MB）です。配布先に .NET のインストールは不要です。
 起動時に中身を一時フォルダへ展開するので、初回起動は少し時間がかかります。
 
-起動中の `SequenceDojo.exe` がある場合はビルドを中止します。アプリを閉じてから、同じコマンドを再実行してください。出力先は毎回作り直します。
+起動中の `SequenceDojo.exe` がある場合はビルドを中止します。アプリを閉じてから、同じコマンドを再実行してください。既存の出力フォルダは削除せず、配布ファイルを更新します。
 
 ## 検査スクリプトのテスト
 
@@ -51,3 +51,5 @@ EXE は .NET ランタイムと画面ファイルを含む単一ファイル（�
 ```powershell
 python -m unittest discover -s tests/release
 ```
+
+配布ZIPとその `.zip.sha256` も `artifacts/release/` に作成します。ZIPには必要な配布ファイルだけを含め、既存ZIP・チェックサム・リリース本文は含めません。旧出力フォルダは自動削除しません。
