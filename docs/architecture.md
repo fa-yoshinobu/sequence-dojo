@@ -45,10 +45,23 @@ PLC 出力 plcY[16]      ─┘   配線モード OFF: x = closed、out = plcY[0
 - `plcY` は、接続中はサーバーから受け取った値、未接続中は I/O モニタで手動操作した値です。
 - 計算結果は `cur`（`x`・`y`・`out`・`closed`）に保存され、描画（`frame()`）と自動判定（`sim.observe()`）が参照します。
 
+## JavaScript の役割
+
+`app.js` は状態と各モジュールを組み立て、20ms の周期計算と描画ループを起動する。
+
+- `simulation.js`: 状態生成、接点、リレーのインターロック、ワーク移動・衝突、LS判定、課題の操作・観測API。Three.js・DOM・時計に依存しない。`stepSimulation(st, cur, dt, { evaluateWiring, draggedWork })` は I/O → リレー → 移動 → LS の順序を保つ。
+- `board-view.js`: Three.js の作業盤・ワーク、描画、カメラと3Dポインタ操作。計算結果の `st` / `cur` を描画する。
+- `screen-controls.js` / `task-controls.js`: ワーク・配線・ヘルプ・タブと、課題選択・タイマー・判定表示。
+- `communications.js`: WebSocket の接続・再接続・送信と受信した状態の反映。
+- `connection-form.js`: 接続フォームとデバイス名。`projects.js`: プロジェクト保存・読込、未保存変更の検知、WebView2のファイルメッセージ。
+- `wiring-circuit.js`: 配線の計算と検査。`wiring.js` が3D表示と操作を担当する。
+
+`window.__dojo` の状態・操作APIは維持する。`tests/browser/simulation-replay.test.mjs` は、同梱3課題を仮想PLCと20ms刻みで再生し、分割前の固定fixtureと全I/O・リレー・ワーク位置・判定ログを比較する。実PLCの検証とは区別する。
+
 ## 座標系
 
 - 1 = 1mm。盤上面が y = 0、操作者側が +z、右が +x。
-- 主な定数（`js/app.js`）: `CONV`（コンベア範囲・速度 45mm/s）、`WORK`（ワーク寸法・移動範囲）、`LS_X`（LS の位置）、`SCREW_Z`（ビス列の位置）。
+- 主な定数（`js/simulation.js`）: `CONV`（コンベア範囲・速度 45mm/s）、`WORK`（ワーク寸法・移動範囲）、`LS_X`（LS の位置）。ビス列の描画位置 `SCREW_Z` は `js/board-view.js`。
 - PLC モデルの位置は `js/wiring.js` の `PLC` 定数です。
 
 ## WebSocket 通信仕様（`/ws`、JSON）
@@ -164,8 +177,8 @@ build.bat
 
 | やりたいこと | 変更箇所 |
 |---|---|
-| 盤の部品を追加・移動 | `js/app.js` の各部品ブロック。クリック可能にするには `interactive(mesh, action)` で登録し、`pointerdown` の `switch` に処理を追加 |
+| 盤の部品を追加・移動 | `js/board-view.js` の各部品ブロック。クリック可能にするには `interactive(mesh, action)` で登録し、`pointerdown` の `switch` に処理を追加 |
 | 配線練習用 PLC の機種を追加 | `js/wiring.js` の `PLC_MODELS` に定義を追加（端子名・入力コモン・出力コモンのグループ・サービス電源の有無・外形 `compact` / `modules`） |
-| 判定条件のキーを追加 | `js/app.js` の `sim.observe()` |
+| 判定条件のキーを追加 | `js/simulation.js` の `createTaskApi().observe()` |
 | 判定ステップを追加 | `js/tasks.js` の `TaskRunner.run()` |
-| 通信方式を追加 | `Plc/` に `IPlcLink` の実装を追加し、`PlcLinks.OpenAsync` と画面の `PROTOCOLS`（`js/app.js`）に登録 |
+| 通信方式を追加 | `Plc/` に `IPlcLink` の実装を追加し、`PlcLinks.OpenAsync` と画面の `PROTOCOLS`（`js/connection-form.js`）に登録 |

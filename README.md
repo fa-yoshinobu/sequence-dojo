@@ -89,10 +89,18 @@ sequence-dojo/
          ├─ index.html
          ├─ css/style.css
          ├─ js/
-         │  ├─ app.js      作業盤モデル・操作・シミュレーション・UI
+         │  ├─ app.js      モジュールの組み立て・周期実行・描画ループ
+         │  ├─ simulation.js       接点・リレー・ワーク移動・LS（DOM / Three.js 非依存）
+         │  ├─ board-view.js       3D 作業盤・描画・カメラとポインタ操作
+         │  ├─ screen-controls.js  ワーク・配線・ヘルプ・タブの画面操作
+         │  ├─ communications.js   WebSocket とサーバー状態の反映
+         │  ├─ connection-form.js  接続設定フォーム・デバイス名
+         │  ├─ projects.js        *.sdojo 保存・読込と変更検知
+         │  ├─ task-controls.js   課題の選択・タイマー・判定表示
          │  ├─ gfx.js      3D 形状・文字のヘルパ
          │  ├─ wiring.js   配線モード（PLC モデル・ケーブル・回路計算）
-         │  └─ tasks.js    課題モード（タイマー・自動判定）
+         │  ├─ wiring-circuit.js  配線の回路計算（DOM / Three.js 非依存）
+         │  └─ tasks.js    課題シナリオの自動判定
          ├─ tasks/         課題ファイル（JSON）
          └─ vendor/        Three.js（r187）
 ```
