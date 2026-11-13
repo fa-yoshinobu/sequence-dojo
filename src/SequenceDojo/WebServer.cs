@@ -78,7 +78,6 @@ public static class WebServer
         session.ProjectOpens.Pending += SendPendingProject;
         app.Lifetime.ApplicationStopped.Register(() => session.ProjectOpens.Pending -= SendPendingProject);
 
-
         async Task SendAsync(WebSocket ws, SemaphoreSlim gate, object msg)
         {
             var bytes = JsonSerializer.SerializeToUtf8Bytes(msg, json);
@@ -104,6 +103,13 @@ public static class WebServer
             var msg = new { type = "state", state };
             foreach (var (ws, gate) in sockets) _ = SendAsync(ws, gate, msg);
         };
+
+        app.Use(async (ctx, next) =>
+        {
+            ctx.Response.Headers["X-Frame-Options"] = "DENY";
+            ctx.Response.Headers["Content-Security-Policy"] = "frame-ancestors 'none'";
+            await next();
+        });
 
         if (!embeddedFiles && EmbeddedWebFiles.HasDevelopmentFiles(Path.Combine(app.Environment.ContentRootPath, "wwwroot")))
         {

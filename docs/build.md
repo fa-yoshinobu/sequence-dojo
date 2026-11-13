@@ -87,3 +87,16 @@ python -m unittest discover -s tests/release
 | 同梱.NETランタイム | `src/SequenceDojo/SequenceDojo.csproj` の `RuntimeFrameworkVersion` | 固定したパッチ版と自己完結EXEの同梱版を確認する |
 | Three.js | `src/SequenceDojo/wwwroot/vendor/three.core.js` の `REVISION`、同じパッケージの `three.module.js` と `addons/OrbitControls.js`、`LICENSE-three.txt` | vendor一式を同じ版から更新し、`THIRD-PARTY-NOTICES.md` の版・著作権年、`docs/architecture.md`、`CHANGELOG.md`を揃える |
 | 製品バージョン | `src/SequenceDojo/SequenceDojo.csproj` の `Version`、リリースタグ、`CHANGELOG.md`、`.github/release-notes.md` | 製品版と変更履歴を揃え、.NET/Three.jsの版とは区別する |
+
+## CSPと改行規約
+
+`index.html` のCSPは同一オリジンのスクリプトと、エラーハンドラー・import mapのSHA256だけを許可します。`unsafe-eval` / scriptの `unsafe-inline` は使いません。WebSocketはlocalhostの可変ポートを許可し、サーバーでもCookieとOriginを確認します。既存のstyle属性とエラーバーにはstyleの `unsafe-inline` を使います。
+
+インラインスクリプトやimport mapを変更したら、次を実行してCSPのハッシュを更新し、整合性テストを通してください。ブラウザがHTMLの改行をLFへ正規化するため、ハッシュ計算も同じ正規化を行います。
+
+```powershell
+node .github/scripts/update-csp-hashes.mjs
+node --test tests/browser/security-policy.test.mjs
+```
+
+CIの .NET buildは `-warnaserror` で警告もエラーにします。`.gitattributes` と `.editorconfig` はUTF-8・LFを基本とし、bat/cmdはCRLF、C#の字下げは4、JavaScript等は2スペースです。既存ファイルの一括整形・改行変換は行いません。

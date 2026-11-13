@@ -19,7 +19,7 @@ export function createConnectionForm(st, hooks, store, restore) {
     keyence: [{ name: 'keyence:kv-8000', displayName: 'KEYENCE KV-8000' }],
     gxSimulator: ['melsec:iq-r', 'melsec:iq-l'], kvSimulator: ['keyence:kv-8000', 'keyence:kv-x500'],
   };
-  const catalogReady = fetch('api/profiles').then(r => r.json()).then(c => { catalog = c; }).catch(() => { });
+  const catalogReady = fetch('api/profiles').then(r => r.json()).then(c => { catalog = c; }).catch(error => { globalThis.__dojoReportClientError?.(`機種一覧の取得に失敗（既定値を使用）: ${error}`); });
 
   const form = document.getElementById('connForm');
   const F = form.elements;

@@ -35,7 +35,7 @@ jobs:
 
       - name: Build solution
         run: |
-          dotnet build SequenceDojo.sln -c Release --nologo
+          dotnet build SequenceDojo.sln -c Release --nologo -warnaserror
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Test application without real PLC hardware

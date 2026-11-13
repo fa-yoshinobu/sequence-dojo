@@ -34,7 +34,6 @@
     <!-- 開発時は実ファイル、配布EXEでは埋め込みリソースから直接配信する。 -->
     <EmbeddedResource Include="wwwroot\**\*" LogicalName="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" />
     <Content Update="wwwroot\**;appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" ExcludeFromSingleFile="true" />
-    <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
   </ItemGroup>
 
   <!-- WebView2 パッケージは WPF 用アセンブリも参照するが、WinForms では不要（WindowsBase の競合警告の原因）なので外す -->

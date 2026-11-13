@@ -4,7 +4,7 @@ import { registerHooks } from 'node:module';
 const threeUrl = new URL('../../src/SequenceDojo/wwwroot/vendor/three.module.js', import.meta.url).href;
 
 test('app assembles the real UI, form, communication and project modules', async t => {
-  const elements = new Map(), intervals = [], frames = [], posted = [], messages = [];
+  const elements = new Map(), intervals = [], frames = [], posted = [], messages = [], reports = [];
   class Element {
     constructor() { this.value = ''; this.checked = false; this.open = false; this.dataset = {}; this.listeners = {}; this.style = {}; this.classList = { toggle() {}, add() {} }; }
     addEventListener(type, callback) { (this.listeners[type] ??= []).push(callback); }
@@ -21,10 +21,10 @@ test('app assembles the real UI, form, communication and project modules', async
   form.elements = Object.fromEntries(['protocol','profile','host','port','transport','inputStart','outputStart','intervalMs','unitId','simulator'].map(k => [k,new Element()]));
   const document = { getElementById:get, querySelector:() => new Element(), querySelectorAll:() => [], createElement:() => new Element(), addEventListener() {} };
   for (const [name,value] of Object.entries({ Element, document, window:globalThis, chrome:{webview:{postMessage:m => posted.push(m),addEventListener:(_,cb) => messages.push(cb)}},
-    devicePixelRatio:1, location:{protocol:'http:',host:'localhost:5087'}, localStorage:{getItem:() => null,setItem() {},removeItem() {}},
+    devicePixelRatio:1, location:{protocol:'http:',host:'localhost:5087'}, localStorage:{getItem() {throw new Error('storage read denied')},setItem() {throw new Error('storage write denied')},removeItem() {throw new Error('storage delete denied')}}, __dojoReportClientError:message => reports.push(message),
     addEventListener() {}, removeEventListener() {}, alert:assert.fail, confirm:() => true,
     setInterval:cb => {intervals.push(cb);return 0;}, setTimeout:() => 0, requestAnimationFrame:cb => frames.push(cb),
-    fetch:async url => ({json:async () => url.includes('profiles') ? { melsec:[{name:'melsec:iq-f',displayName:'iQ-F'}],keyence:[],gxSimulator:[],kvSimulator:[] } : []}),
+    fetch:async url => { if (url.includes('profiles')) throw new Error('catalog unavailable'); return {json:async () => []}; },
     WebSocket:class { static OPEN = 1; readyState = 1; send() {} }
   })) {
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, name);
@@ -57,5 +57,6 @@ test('app assembles the real UI, form, communication and project modules', async
     assert.equal(JSON.parse(saved.content).format, 'sequence-dojo');
     assert.equal(globalThis.__dojoDirty(), true);
     assert.equal(messages.length,1);
+    for (const context of ['設定の保存','設定の読込み','旧設定の削除','機種一覧の取得']) assert.ok(reports.some(message => message.includes(context)),context);
   } finally { hooks.deregister(); }
 });

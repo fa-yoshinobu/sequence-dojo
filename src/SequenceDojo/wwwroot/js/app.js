@@ -1,5 +1,6 @@
 import { startInterval } from './timers.js';
 import { createSimulationClock } from './simulation-clock.js';
+import { showPortNotice } from './environment-notice.js';
 import * as THREE from 'three';
 import { createState, createCurrent, stepSimulation, createTaskApi } from './simulation.js';
 import { createBoardView } from './board-view.js';
@@ -16,9 +17,10 @@ const OUTPUT_NAMES = ['RY1 左行', 'RY2 右行', 'PL1', 'PL2', 'PL3', 'PL4',
   'DPL1 1', 'DPL1 2', 'DPL1 4', 'DPL1 8', 'DPL2 10', 'DPL2 20', 'DPL2 40', 'DPL2 80'];
 
 
+showPortNotice();
 const st = createState(), cur = createCurrent();
-function store(k, v) { try { localStorage.setItem(`seqdojo.${k}`, JSON.stringify(v)); } catch { } }
-function restore(k, def) { try { return JSON.parse(localStorage.getItem(`seqdojo.${k}`)) ?? def; } catch { return def; } }
+function store(k, v) { try { localStorage.setItem(`seqdojo.${k}`, JSON.stringify(v)); } catch (error) { globalThis.__dojoReportClientError?.(`設定の保存に失敗 (${k}): ${error}`); } }
+function restore(k, def) { try { return JSON.parse(localStorage.getItem(`seqdojo.${k}`)) ?? def; } catch (error) { globalThis.__dojoReportClientError?.(`設定の読込みに失敗 (${k}): ${error}`); return def; } }
 const hooks = {};
 const view = createBoardView(st, cur, hooks, restore);
 const { camera, controls, navKeys, wiring } = view;
@@ -84,7 +86,7 @@ window.__dojo = { st, cur, wiring, sim, runner, camera, controls, navKeys }; // 
 wiring.load(restore('wires', []));
 setWiringMode(restore('wiringMode', false));
 setMultiWork(false);
-try { localStorage.removeItem('seqdojo.multiWork'); } catch { } // 以前の版で記憶した値を消す
+try { localStorage.removeItem('seqdojo.multiWork'); } catch (error) { globalThis.__dojoReportClientError?.(`旧設定の削除に失敗: ${error}`); } // 以前の版で記憶した値を消す
 showTab(restore('tab', 'conn'));
 updateHinban();
 loadTasks();

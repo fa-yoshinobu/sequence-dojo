@@ -17,9 +17,9 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
 #view canvas { display: block; }
 
 .dock { position: fixed; background: var(--dock); border: 1px solid var(--line); border-radius: 8px;
-  padding: 6px 10px; backdrop-filter: blur(4px); max-height: calc(100vh - 70px); overflow: auto; }
-#left { top: 10px; left: 10px; }
-#right { top: 10px; right: 10px; }
+  padding: 6px 10px; backdrop-filter: blur(4px); max-height: calc(100vh - 70px - var(--port-notice-height, 0px)); overflow: auto; }
+#left { top: calc(10px + var(--port-notice-height, 0px)); left: 10px; }
+#right { top: calc(10px + var(--port-notice-height, 0px)); right: 10px; }
 #views { bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; padding: 6px; }
 
 details + details { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 4px; }
@@ -137,3 +137,7 @@ input:disabled, select:disabled { opacity: 0.5; }
   font-size: 12px; color: var(--muted); pointer-events: none; text-shadow: 0 1px 2px #000; white-space: nowrap; }
 #fileBar #fileName { color: var(--fg); }
 #fileBar #fileStatus { color: var(--on); }
+
+#portNotice { position: fixed; top: 0; left: 0; right: 0; z-index: 800;
+  background: #5a3b08; color: #fff3d6; padding: 6px 12px; border-bottom: 1px solid var(--warn);
+  max-height: 25vh; overflow: auto; }

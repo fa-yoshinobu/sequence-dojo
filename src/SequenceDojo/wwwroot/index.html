@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-VtydmoBnQgfFkW3lK/0kUaz8+Oe5O36o9P88LzkaCc8=' 'sha256-JmFPMM6hqTDeOhh+5pDmskMz2dW/Br0dXHziUxIC+BA='; connect-src 'self' ws://localhost:*; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>シーケンス道場 3D</title>
 <link rel="icon" href="img/favicon.svg" type="image/svg+xml">
@@ -48,6 +49,7 @@
 </script>
 </head>
 <body>
+<aside id="portNotice" role="status" hidden></aside>
 <div id="splash" title="クリックでスキップ">
   <img src="img/logo.svg" alt="シーケンス道場 3D">
   <div class="splash-hint">クリックでスキップ</div>
