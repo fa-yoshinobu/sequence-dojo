@@ -27,7 +27,7 @@ G2 の完了後は、追加したテスト（`dotnet test` と画面側のテス
 | G2 | アプリ本体に自動テストがあり、push/PRで走る | 高 | 実装・ローカル検証済み（外部CI検証待ち） |
 | G3 | 切断・異常時にPLCへ古い入力が残らない | 高 | 完了 |
 | G4 | 文書の記述がコードと一致している | 高 | 完了 |
-| G5 | 一時フォルダーへの全展開をやめる | 中 | 未着手 |
+| G5 | 一時フォルダーへの全展開をやめる | 中 | 完了 |
 | G6 | 起動済みでも `*.sdojo` のダブルクリックで開ける | 中 | 完了 |
 | G7 | 異常の原因がログに残る | 中 | 完了 |
 | G8 | 最小化中も自動判定が正しく動く | 中 | 未着手 |
@@ -141,12 +141,12 @@ G2 の完了後は、追加したテスト（`dotnet test` と画面側のテス
 **対象**: `src/SequenceDojo/SequenceDojo.csproj`、`WebServer.cs`、`build.bat`、`.github/workflows/release.yml`、`docs/build.md`、`docs/architecture.md`
 
 **完了条件**
-- [ ] `wwwroot` を埋め込みリソースにし、埋め込みから直接配信する（ETag と `Cache-Control: no-cache` の動作は維持）。
-- [ ] `IncludeAllContentForSelfExtract` を外す。ネイティブライブラリ（WebView2Loader）だけが展開対象になる。
-- [ ] 開発時（`run.bat`）は従来どおり `wwwroot` のファイルを直接配信し、編集して再読み込みで反映される。
-- [ ] EXE 1ファイルだけで起動できること、ZIPの中身がEXEだけであることは変えない。
-- [ ] 起動時に、以前の版が残した `%TEMP%\.net\SequenceDojo\` の古いフォルダーを削除する（失敗は無視）。
-- [ ] `build.md` の「起動時に中身を一時フォルダへ展開する」の説明を更新する。
+- [x] `wwwroot` を埋め込みリソースにし、埋め込みから直接配信する（ETag と `Cache-Control: no-cache` の動作は維持）。
+- [x] `IncludeAllContentForSelfExtract` を外す。ネイティブライブラリ（WebView2Loader）だけが展開対象になる。
+- [x] 開発時（`run.bat`）は従来どおり `wwwroot` のファイルを直接配信し、編集して再読み込みで反映される。
+- [x] EXE 1ファイルだけで起動できること、ZIPの中身がEXEだけであることは変えない。
+- [x] 起動時に、以前の版が残した `%TEMP%\.net\SequenceDojo\` の古いフォルダーを削除する（失敗は無視）。
+- [x] `build.md` の「起動時に中身を一時フォルダへ展開する」の説明を更新する。
 
 **検証**: `build.bat` で作ったEXEを別のPC（または別フォルダー）で起動し、画面・課題・配線が動く。`%TEMP%\.net\SequenceDojo\` に画面ファイルとランタイムが展開されていない。
 

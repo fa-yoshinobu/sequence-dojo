@@ -19,19 +19,19 @@ public static class WebServer
     public const int PreferredPort = 5087;
 
     /// <summary>サーバーを起動して、アクセス先の URL を返す。既定ポートが使用中なら空きポートを使う。</summary>
-    public static async Task<(WebApplication App, string Url)> StartAsync(string[] args, int port = PreferredPort)
+    public static async Task<(WebApplication App, string Url)> StartAsync(string[] args, int port = PreferredPort, bool embeddedFiles = false)
     {
         try
         {
-            return await StartOnAsync(args, port);
+            return await StartOnAsync(args, port, embeddedFiles);
         }
         catch (IOException) when (port != 0)
         {
-            return await StartOnAsync(args, 0);
+            return await StartOnAsync(args, 0, embeddedFiles);
         }
     }
 
-    private static async Task<(WebApplication, string)> StartOnAsync(string[] args, int port)
+    private static async Task<(WebApplication, string)> StartOnAsync(string[] args, int port, bool embeddedFiles)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -40,10 +40,11 @@ public static class WebServer
         });
         builder.WebHost.ConfigureKestrel(k => k.Listen(IPAddress.Loopback, port));
         builder.Logging.AddProvider(new DiagnosticLoggerProvider());
+        builder.Configuration["AllowedHosts"] = "localhost;127.0.0.1";
         builder.Services.AddSingleton<PlcService>();
         builder.Services.AddSingleton<BrowserSession>();
         var app = builder.Build();
-        Configure(app);
+        Configure(app, embeddedFiles);
         try { await app.StartAsync(); }
         catch { await app.DisposeAsync(); throw; }
         var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First();
@@ -53,7 +54,7 @@ public static class WebServer
         return (app, url);
     }
 
-    private static void Configure(WebApplication app)
+    private static void Configure(WebApplication app, bool embeddedFiles)
     {
         var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         var plc = app.Services.GetRequiredService<PlcService>();
@@ -103,12 +104,19 @@ public static class WebServer
             foreach (var (ws, gate) in sockets) _ = SendAsync(ws, gate, msg);
         };
 
-        app.UseDefaultFiles();
-        // 更新したファイルが古いキャッシュで隠れないよう、毎回更新を確認させる（ETag で差分がなければ 304）
-        app.UseStaticFiles(new StaticFileOptions
+        if (!embeddedFiles && EmbeddedWebFiles.HasDevelopmentFiles(Path.Combine(app.Environment.ContentRootPath, "wwwroot")))
         {
-            OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "no-cache",
-        });
+            app.UseDefaultFiles();
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "no-cache",
+            });
+        }
+        else
+        {
+            var assets = new EmbeddedWebFiles();
+            app.MapMethods("/{**path}", ["GET", "HEAD"], assets.ServeAsync);
+        }
         app.UseWebSockets();
 
         // 通信先 PLC の機種選択肢（MELSEC / KEYENCE はライブラリの機種一覧から）

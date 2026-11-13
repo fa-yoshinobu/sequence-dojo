@@ -31,8 +31,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- 画面ファイルは exe の隣に置く。1 ファイル発行では exe に含め、起動時に展開する -->
-    <Content Update="wwwroot\**;appsettings.json" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="false" />
+    <!-- 開発時は実ファイル、配布EXEでは埋め込みリソースから直接配信する。 -->
+    <EmbeddedResource Include="wwwroot\**\*" LogicalName="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Content Update="wwwroot\**;appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" ExcludeFromSingleFile="true" />
     <Content Update="appsettings.Development.json" CopyToPublishDirectory="Never" />
   </ItemGroup>
 

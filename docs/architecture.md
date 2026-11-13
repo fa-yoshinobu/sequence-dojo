@@ -170,7 +170,8 @@ build.bat
 
 - `wwwroot` のファイルはビルド時に exe の隣（`bin\Release\net10.0-windows\wwwroot`）へコピーされます。画面のファイルを編集したら `run.bat` で起動し直してください。
 - Three.js は `src/SequenceDojo/wwwroot/vendor/` に同梱しています（`three.module.js`, `three.core.js`、`addons/OrbitControls.js`）。更新する場合は npm の `three` パッケージから同じパスにコピーします。
-- `build.bat` とリリース用ワークフロー（`.github/workflows/release.yml`）は自己完結・1 ファイル発行（`PublishSingleFile`、`IncludeAllContentForSelfExtract`、`EnableCompressionInSingleFile`）です。`wwwroot` と `appsettings.json` も exe に含め（csproj の `ExcludeFromSingleFile="false"`）、起動時に一時フォルダへ展開されます。
+- `build.bat` とリリース用ワークフロー（`.github/workflows/release.yml`）は自己完結・1 ファイル発行（`PublishSingleFile`、`EnableCompressionInSingleFile`）です。`wwwroot` は埋め込みリソースとしてHTTP配信し、内容のSHA-256をETagに使います。全コンテンツの一時展開は行いません。開発ビルドでは隣の `wwwroot` を使用し、単一EXEでは埋め込み版を使用します。`appsettings.json` は配布物へコピーせず、待受先はコードでloopbackに限定します。WebView2LoaderなどのネイティブDLLの展開は維持します。
+- `LegacyExtractionCleanup` は起動時に `%TEMP%\.net\SequenceDojo` 直下の旧ハッシュフォルダだけを整理します。絶対パスの境界を確認し、ルート・子孫にreparse pointがあれば削除しません。`AppContext.BaseDirectory` と `NATIVE_DLL_SEARCH_DIRECTORIES` の使用中フォルダを残し、失敗は診断ログへ記録して起動を続けます。
 - WebView2 パッケージが参照する WPF 用アセンブリは、WinForms では不要なので csproj のターゲットで参照から外しています。
 
 ## 拡張のヒント

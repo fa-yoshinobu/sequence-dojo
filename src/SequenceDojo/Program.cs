@@ -53,6 +53,7 @@ internal static class Program
             BringExistingToFront();
             return;
         }
+        LegacyExtractionCleanup.Run();
         var requests = new ProjectOpenQueue();
         if (file != null)
         {

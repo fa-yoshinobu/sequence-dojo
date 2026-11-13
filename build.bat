@@ -40,7 +40,6 @@ dotnet publish "%PROJECT%" ^
   --nologo ^
   -p:PublishSingleFile=true ^
   -p:IncludeNativeLibrariesForSelfExtract=true ^
-  -p:IncludeAllContentForSelfExtract=true ^
   -p:EnableCompressionInSingleFile=true ^
   -p:DebugType=None ^
   -p:DebugSymbols=false
