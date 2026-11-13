@@ -39,17 +39,22 @@ public static class WebServer
         });
         builder.WebHost.ConfigureKestrel(k => k.Listen(IPAddress.Loopback, port));
         builder.Services.AddSingleton<PlcService>();
+        builder.Services.AddSingleton<BrowserSession>();
         var app = builder.Build();
         Configure(app);
-        await app.StartAsync();
+        try { await app.StartAsync(); }
+        catch { await app.DisposeAsync(); throw; }
         var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First();
-        return (app, address.Replace("127.0.0.1", "localhost") + "/");
+        string url = address.Replace("127.0.0.1", "localhost") + "/";
+        app.Services.GetRequiredService<BrowserSession>().Origin = new Uri(url).GetLeftPart(UriPartial.Authority);
+        return (app, url);
     }
 
     private static void Configure(WebApplication app)
     {
         var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         var plc = app.Services.GetRequiredService<PlcService>();
+        var session = app.Services.GetRequiredService<BrowserSession>();
         var sockets = new ConcurrentDictionary<WebSocket, SemaphoreSlim>();
 
         async Task SendAsync(WebSocket ws, SemaphoreSlim gate, object msg)
@@ -82,8 +87,42 @@ public static class WebServer
         // 通信先 PLC の機種選択肢（MELSEC / KEYENCE はライブラリの機種一覧から）
         app.MapGet("/api/profiles", () => Results.Json(PlcLinks.Catalog(), json));
 
+        app.MapPost("/session", async ctx =>
+        {
+            bool allowed = false;
+            if (ctx.Request.HasFormContentType && ctx.Request.ContentLength is > 0 and <= 4096)
+            {
+                try
+                {
+                    var form = await ctx.Request.ReadFormAsync(ctx.RequestAborted);
+                    allowed = form.TryGetValue("token", out var values) && values.Count == 1 && session.Matches(values[0]);
+                }
+                catch (Exception error) when (error is InvalidDataException or BadHttpRequestException)
+                {
+                    app.Logger.LogWarning("認証用フォームを拒否しました");
+                }
+            }
+            if (!allowed)
+            {
+                app.Logger.LogWarning("認証情報が一致しないブラウザ接続を拒否しました");
+                ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return;
+            }
+            ctx.Response.Cookies.Append(BrowserSession.CookieName, session.Token,
+                new CookieOptions { HttpOnly = true, SameSite = SameSiteMode.Strict, Path = "/", IsEssential = true });
+            ctx.Response.Headers.CacheControl = "no-store";
+            ctx.Response.StatusCode = StatusCodes.Status303SeeOther;
+            ctx.Response.Headers.Location = "/";
+        });
+
         app.Map("/ws", async ctx =>
         {
+            if (!session.Allows(ctx))
+            {
+                app.Logger.LogWarning("Originまたは認証情報が一致しないWebSocket接続を拒否しました");
+                ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return;
+            }
             if (!ctx.WebSockets.IsWebSocketRequest) { ctx.Response.StatusCode = 400; return; }
             using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
             var gate = new SemaphoreSlim(1, 1);

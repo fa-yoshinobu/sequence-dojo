@@ -24,6 +24,12 @@ SequenceDojo.exe
 
 ## 画面側の信号の流れ
 
+### WebSocketのアクセス保護
+
+`/ws` は `http://localhost:<実際のポート>` と完全一致するOriginと、起動時に乱数で作成する認証情報の両方を確認する。未指定・不一致の接続は403で拒否し、認証情報そのものを記録せずにサーバーログへ残す。`AllowedHosts` は `localhost;127.0.0.1` に限定する。
+
+MainFormはWebView2のCookieManagerからHttpOnly・SameSite=StrictのCookieを設定して画面を開く。既定ブラウザでは、一時ローカルHTMLから `/session` のリクエスト本文へ認証情報をPOSTし、同じCookieを設定してから画面へリダイレクトする。一時HTMLは終了時に削除する。認証情報をURLやJavaScriptのグローバルへ公開しないため、この方式を用いる。アプリを再起動すると認証情報も変わる。
+
 `js/app.js` の `simTick()` が 20ms ごとに実行されます（描画ループとは独立）。
 
 ```

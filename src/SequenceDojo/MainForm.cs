@@ -10,14 +10,17 @@ public sealed class MainForm : Form
     private const string AppTitle = "シーケンス道場 3D";
     private readonly WebView2 _view = new() { Dock = DockStyle.Fill };
     private readonly string _url;
+    private readonly BrowserSession _session;
+    private string? _browserBootstrap;
     private readonly string? _startupFile;
     private ProjectFiles? _files;
     private bool _closeConfirmed;     // 未保存の確認が済んだ（またはファイルを保存した）
     private bool _closeAfterSave;     // 「保存する」を選んだあと、保存が済んだら閉じる
 
-    public MainForm(string url, string? startupFile = null)
+    public MainForm(string url, BrowserSession session, string? startupFile = null)
     {
         _url = url;
+        _session = session;
         _startupFile = startupFile;
         Text = AppTitle;
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
@@ -28,6 +31,12 @@ public sealed class MainForm : Form
         Controls.Add(_view);
         Load += async (_, _) => await InitAsync();
         FormClosing += OnFormClosing;
+        FormClosed += (_, _) =>
+        {
+            if (_browserBootstrap == null) return;
+            try { File.Delete(_browserBootstrap); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { Debug.WriteLine(error); }
+        };
     }
 
     private async Task InitAsync()
@@ -51,6 +60,11 @@ public sealed class MainForm : Form
         }
 
         var core = _view.CoreWebView2;
+        // Native cookie injection keeps the per-launch secret out of URLs, script globals and logs.
+        var cookie = core.CookieManager.CreateCookie(BrowserSession.CookieName, _session.Token, "localhost", "/");
+        cookie.IsHttpOnly = true;
+        cookie.SameSite = CoreWebView2CookieSameSiteKind.Strict;
+        core.CookieManager.AddOrUpdateCookie(cookie);
         core.Settings.IsStatusBarEnabled = false;
         core.Settings.IsZoomControlEnabled = false;
         core.DocumentTitleChanged += (_, _) => Text = string.IsNullOrWhiteSpace(core.DocumentTitle) ? AppTitle : core.DocumentTitle;
@@ -143,7 +157,17 @@ public sealed class MainForm : Form
             Font = new Font("Yu Gothic UI", 11f),
             Text = $"{message}\n\n{_url}\n\nこのウィンドウを閉じるとアプリが終了します。",
         });
-        OpenExternal(_url);
+        try
+        {
+            _browserBootstrap = Path.Combine(Path.GetTempPath(), $"SequenceDojo-browser-{Guid.NewGuid():N}.html");
+            File.WriteAllText(_browserBootstrap, _session.BootstrapHtml(), new System.Text.UTF8Encoding(false));
+            OpenExternal(StoragePath.ResolveExisting(_browserBootstrap));
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            MessageBox.Show(this, $"ブラウザ起動の準備ができませんでした。\n{error.Message}", AppTitle,
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private static void OpenExternal(string uri)

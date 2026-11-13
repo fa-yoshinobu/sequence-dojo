@@ -37,7 +37,7 @@ internal static class Program
         {
             // 起動時に渡された *.sdojo（エクスプローラーでのドラッグ＆ドロップやファイルの関連付け）を開く
             var file = args.FirstOrDefault(a => !a.StartsWith('-') && File.Exists(a));
-            Application.Run(new MainForm(url, file));
+            Application.Run(new MainForm(url, web.Services.GetRequiredService<BrowserSession>(), file));
         }
         finally
         {
