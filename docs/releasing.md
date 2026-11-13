@@ -11,7 +11,7 @@ VirusTotal への通常の送信は公開サンプルの投稿です。検査結
 
 ## ZIP を公開する
 
-1. リリース対象の変更を commit して GitHub へ push します。[CHANGELOG.md](../CHANGELOG.md) の「未リリース」をバージョン番号に書き換えておきます。
+1. リリース対象の変更を commit して GitHub へ push します。[CHANGELOG.md](../CHANGELOG.md) の「Unreleased」をバージョン番号に書き換えておきます。
 2. 未使用のバージョンタグを作成して push します。
 
    ```powershell
@@ -21,13 +21,13 @@ VirusTotal への通常の送信は公開サンプルの投稿です。検査結
 
 3. **Actions → Release** で進捗を確認します。
 
-[Release ワークフロー](../.github/workflows/release.yml)は .NET 10 で単一ファイルの EXE を発行し、`SequenceDojo-v0.3.0-win-x64.zip` を公開します。ZIP の内容は **`SequenceDojo.exe` の 1 ファイルだけ**です（入っていなければワークフローを失敗にします）。
+[Release ワークフロー](../.github/workflows/release.yml)は .NET 10 で単一ファイルの EXE を発行し、`SequenceDojo-win-x64.zip` を公開します。ZIP の内容は **`SequenceDojo.exe` の 1 ファイルだけ**です（入っていなければワークフローを失敗にします）。
 
 タグは `vMAJOR.MINOR.PATCH` または `vMAJOR.MINOR.PATCH-rc.1` などの形式を使用します。EXE のバージョンもタグに合わせます。ハイフン付きのタグは GitHub のプレリリースとして公開します。作成済みのタグから公開する場合は **Actions → Release → Run workflow** の `release_tag` にそのタグを指定します。
 
 公開時の本文にはダウンロードリンク・起動方法と「VirusTotal：検査中。」を表示します。公開後のジョブが VirusTotal の検査ワークフローを呼び、完了すると検査中の表示を結果リンクに置き換えます。
 
-本文の定型文は [`.github/release-notes.md`](../.github/release-notes.md) で管理し、GitHub Actions がダウンロード URL と VirusTotal のリンクを埋め込みます。検査が完了している既存リリースの本文だけを更新する場合は、**Actions → Update release notes → Run workflow** で `release_tag` を指定します。配布ファイルやタグを変更せず、VirusTotal の再検査も行いません。
+リリース本文と検査CIの表示は英語です。本文の定型文は [`.github/release-notes.md`](../.github/release-notes.md) で管理します。`release_assets.py` がZIPのSHA-256を作成し、英語本文へタグ付きの配布リンクを埋め込みます。Changes節は公開前にCHANGELOGから更新してください。検査が完了している既存リリースの本文だけを更新する場合は、**Actions → Update release notes → Run workflow** で `release_tag` を指定します。配布ファイルやタグを変更せず、VirusTotal の再検査も行いません。
 
 ## 公開後の検査と再検査
 
@@ -35,7 +35,7 @@ VirusTotal への通常の送信は公開サンプルの投稿です。検査結
 
 - 上記の Release ワークフローが ZIP を公開したあとに呼び出す。
 - GitHub の画面などから Release を公開したときの `release: published` イベント。
-- **Actions → Check published release with VirusTotal → Run workflow** で公開済みの `release_tag` を指定して再検査する。
+- **Actions → Scan release with VirusTotal → Run workflow** で公開済みの `release_tag` を指定して再検査する。
 
 公開済みの EXE、または公開 ZIP 内の EXE を取得して検査します。このアプリの配布 ZIP では `SequenceDojo.exe` が対象です。再検査では本文内の検査欄だけを置き換えます。
 
@@ -43,7 +43,7 @@ VirusTotal への通常の送信は公開サンプルの投稿です。検査結
 
 キー未設定・API エラー・タイムアウトなどで検査が完了しない場合は、本文に「検査未完了」と表示してワークフローを失敗にします。Actions のログを確認し、原因を解消してから再検査を実行してください。検査結果や検査未完了によって、Release や ZIP の公開状態は変更しません。
 
-検査 JSON・Markdown は Actions の `virustotal-実行ID-試行番号` artifact へ 30 日間保存します。Release の添付は配布 ZIP だけです。
+検査 JSON・Markdown は Actions の `virustotal-実行ID-試行番号` artifact へ 30 日間保存します。Release の添付は配布 ZIP とその SHA-256 です。
 
 ## 使用する VirusTotal API
 
