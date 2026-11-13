@@ -24,7 +24,7 @@
 |---|---|
 | OS | Windows 10 / 11（64 bit） |
 | 画面表示 | Microsoft Edge WebView2 ランタイム（Windows 11 には標準で入っています） |
-| ビルドする場合 | .NET SDK 9.0 以上（`dotnet --list-sdks` で確認） |
+| ビルドする場合 | .NET 10 SDK（`dotnet --list-sdks` で確認） |
 | PLC | 三菱 MELSEC（SLMP: iQ-F / iQ-R / iQ-L / MX / Q / L、GX Simulator 3）<br>KEYENCE KV（上位リンク: KV-NANO / 3000 / 5000 / 7000 / 8000 / X500、KV STUDIO シミュレータ）<br>Modbus TCP 対応機器 |
 
 ## すぐに使う

@@ -4,10 +4,14 @@
 
 ### Changed
 
+- Migrate the application and build workflow to .NET 10 and update the bundled Three.js renderer to r187.
+
 - Aligned local and CI release output at `artifacts/release/`, with a fixed-name distribution ZIP and UTF-8/LF SHA-256 checksum.
 - Standardized English release notes and VirusTotal workflows; preserve published assets and scan all published executables.
 
 ### Fixed
+
+- Align SDK requirements, the build error URL, third-party copyright notices and the development asset path with the current application.
 
 - Reject incomplete VirusTotal responses without a matching API-provided executable SHA-256.
 

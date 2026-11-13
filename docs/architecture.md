@@ -155,8 +155,7 @@ rem 配布用の 1 ファイル exe（artifacts\release\SequenceDojo.exe、.NET 
 build.bat
 ```
 
-- `wwwroot` のファイルはビルド時に exe の隣（`bin\Release
-et9.0-windows\wwwroot`）へコピーされます。画面のファイルを編集したら `run.bat` で起動し直してください。
+- `wwwroot` のファイルはビルド時に exe の隣（`bin\Release\net10.0-windows\wwwroot`）へコピーされます。画面のファイルを編集したら `run.bat` で起動し直してください。
 - Three.js は `src/SequenceDojo/wwwroot/vendor/` に同梱しています（`three.module.js`, `three.core.js`、`addons/OrbitControls.js`）。更新する場合は npm の `three` パッケージから同じパスにコピーします。
 - `build.bat` とリリース用ワークフロー（`.github/workflows/release.yml`）は自己完結・1 ファイル発行（`PublishSingleFile`、`IncludeAllContentForSelfExtract`、`EnableCompressionInSingleFile`）です。`wwwroot` と `appsettings.json` も exe に含め（csproj の `ExcludeFromSingleFile="false"`）、起動時に一時フォルダへ展開されます。
 - WebView2 パッケージが参照する WPF 用アセンブリは、WinForms では不要なので csproj のターゲットで参照から外しています。

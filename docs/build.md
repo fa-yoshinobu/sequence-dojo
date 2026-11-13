@@ -74,3 +74,14 @@ python -m unittest discover -s tests/release
 ```
 
 配布ZIPとその `.zip.sha256` も `artifacts/release/` に作成します。ZIPには必要な配布ファイルだけを含め、既存ZIP・チェックサム・リリース本文は含めません。旧出力フォルダは自動削除しません。
+
+
+## バージョン更新時の確認箇所
+
+| 対象 | 版を設定・記載するファイル | 更新時の確認 |
+| --- | --- | --- |
+| .NET対象フレームワーク | `src/SequenceDojo/SequenceDojo.csproj` と `tests/SequenceDojo.Tests/SequenceDojo.Tests.csproj` の `TargetFramework`、`run.bat`、`docs/architecture.md`、この文書の開発出力先 | 出力パスの対象フレームワーク名を揃える |
+| .NET SDK | `.github/workflows/release.yml` と `.github/workflows/ci.yml`、`build.bat` の案内URL、`README.md` の動作環境、この文書の必要環境、`docs/releasing.md` | ビルドに必要なSDKのメジャー版を揃える |
+| 同梱.NETランタイム | `src/SequenceDojo/SequenceDojo.csproj` の `RuntimeFrameworkVersion` | 固定したパッチ版と自己完結EXEの同梱版を確認する |
+| Three.js | `src/SequenceDojo/wwwroot/vendor/three.core.js` の `REVISION`、同じパッケージの `three.module.js` と `addons/OrbitControls.js`、`LICENSE-three.txt` | vendor一式を同じ版から更新し、`THIRD-PARTY-NOTICES.md` の版・著作権年、`docs/architecture.md`、`CHANGELOG.md`を揃える |
+| 製品バージョン | `src/SequenceDojo/SequenceDojo.csproj` の `Version`、リリースタグ、`CHANGELOG.md`、`.github/release-notes.md` | 製品版と変更履歴を揃え、.NET/Three.jsの版とは区別する |

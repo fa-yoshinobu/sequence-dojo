@@ -26,7 +26,7 @@ G2 の完了後は、追加したテスト（`dotnet test` と画面側のテス
 | G1 | 他のWebページからPLCを操作できない | 高 | 完了 |
 | G2 | アプリ本体に自動テストがあり、push/PRで走る | 高 | 実装・ローカル検証済み（外部CI検証待ち） |
 | G3 | 切断・異常時にPLCへ古い入力が残らない | 高 | 完了 |
-| G4 | 文書の記述がコードと一致している | 高 | 未着手 |
+| G4 | 文書の記述がコードと一致している | 高 | 完了 |
 | G5 | 一時フォルダーへの全展開をやめる | 中 | 未着手 |
 | G6 | 起動済みでも `*.sdojo` のダブルクリックで開ける | 中 | 未着手 |
 | G7 | 異常の原因がログに残る | 中 | 未着手 |
@@ -119,12 +119,12 @@ G2 の完了後は、追加したテスト（`dotnet test` と画面側のテス
 **対象**: `README.md`、`build.bat`、`THIRD-PARTY-NOTICES.md`、`docs/architecture.md`、`CHANGELOG.md`
 
 **完了条件**
-- [ ] README「動作環境」の「.NET SDK 9.0 以上」を .NET 10 SDK に直す。
-- [ ] `build.bat` のエラーメッセージのURL（`/download/dotnet/9.0`）を 10.0 に直す。
-- [ ] `THIRD-PARTY-NOTICES.md` の「Three.js r170」「© 2010-2024」を、同梱している r187 と `LICENSE-three.txt` の著作権表記に合わせる。
-- [ ] `docs/architecture.md` の「`bin\Release\net9.0-windows\wwwroot`」を `net10.0-windows` に直す。この箇所は `\n` が改行として保存され、パスが2行に割れているので、あわせて直す。
-- [ ] `CHANGELOG.md` の「未リリース」に、v0.1.0 以降の変更（.NET 10 への移行、Three.js の更新など）を書く。
-- [ ] バージョン番号を含む記述（.NET、Three.js）がどのファイルにあるかを `docs/build.md` に一覧で書き、次回の更新漏れを防ぐ。
+- [x] README「動作環境」の「.NET SDK 9.0 以上」を .NET 10 SDK に直す。
+- [x] `build.bat` のエラーメッセージのURL（`/download/dotnet/9.0`）を 10.0 に直す。
+- [x] `THIRD-PARTY-NOTICES.md` の「Three.js r170」「© 2010-2024」を、同梱している r187 と `LICENSE-three.txt` の著作権表記に合わせる。
+- [x] `docs/architecture.md` の「`bin\Release\net9.0-windows\wwwroot`」を `net10.0-windows` に直す。この箇所は `\n` が改行として保存され、パスが2行に割れているので、あわせて直す。
+- [x] `CHANGELOG.md` の「未リリース」に、v0.1.0 以降の変更（.NET 10 への移行、Three.js の更新など）を書く。
+- [x] バージョン番号を含む記述（.NET、Three.js）がどのファイルにあるかを `docs/build.md` に一覧で書き、次回の更新漏れを防ぐ。
 
 **検証**: `net9`、`dotnet/9.0`、`r170` でリポジトリを検索し、0件になる。
 

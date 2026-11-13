@@ -19,7 +19,7 @@ echo [build] Output : "%EXE%"
 where dotnet >nul 2>nul
 if errorlevel 1 (
   echo [error] dotnet が見つかりません。.NET 10 SDK をインストールしてください。
-  echo [error] https://dotnet.microsoft.com/download/dotnet/9.0
+  echo [error] https://dotnet.microsoft.com/download/dotnet/10.0
   exit /b 1
 )
 
