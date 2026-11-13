@@ -10,38 +10,9 @@
 import * as THREE from 'three';
 import { M, mat, box, cyl, label, tag } from './gfx.js';
 
-const oct = (p, k) => p + k.toString(8).toUpperCase();
-const hex2 = (p, base, k) => p + (base + k).toString(16).toUpperCase().padStart(2, '0');
+import { PLC_MODELS, DEFAULT_MODEL, buildCircuit, evaluateCircuit, checkCircuit } from './wiring-circuit.js';
+export { PLC_MODELS, DEFAULT_MODEL } from './wiring-circuit.js';
 const range = n => Array.from({ length: n }, (_, i) => i);
-
-// 配線練習用 PLC の定義（端子配列は練習用に簡略化している）
-export const PLC_MODELS = {
-  fx5s: {
-    name: 'FX5S-30MR/ES（FX5 系・入力16/出力14）', title: 'FX5S-30MR/ES 想定', layout: 'compact',
-    x: k => oct('X', k), y: k => oct('Y', k),
-    inCommon: 'S/S', service: true,
-    groups: [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13]], comLabel: g => `COM${g}`,
-  },
-  fx5u: {
-    name: 'FX5U-32MR/ES（FX5 系）', title: 'FX5U-32MR/ES 想定', layout: 'compact',
-    x: k => oct('X', k), y: k => oct('Y', k),
-    inCommon: 'S/S', service: true,
-    groups: [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]], comLabel: g => `COM${g}`,
-  },
-  q: {
-    name: 'Q シリーズ（QX40 + QY10）', title: 'Q シリーズ 想定', layout: 'modules', modules: ['QX40', 'QY10'],
-    x: k => hex2('X', 0x00, k), y: k => hex2('Y', 0x10, k),
-    inCommon: 'COM', service: false,
-    groups: [range(16)], comLabel: () => 'COM',
-  },
-  iqr: {
-    name: 'iQ-R シリーズ（RX40C7 + RY10R2）', title: 'iQ-R シリーズ 想定', layout: 'modules', modules: ['RX40C7', 'RY10R2'],
-    x: k => hex2('X', 0x00, k), y: k => hex2('Y', 0x10, k),
-    inCommon: 'COM', service: false,
-    groups: [range(16)], comLabel: () => 'COM',
-  },
-};
-export const DEFAULT_MODEL = 'fx5s';
 
 // PLC の置き場所（盤の奥、天面が盤面と同じ高さになる台の上）
 const PLC = { x: 0, z: -265, w: 150, h: 83, d: 90 };
@@ -260,7 +231,6 @@ export class Wiring {
     return key.startsWith('T:') ? `TB${key.slice(2)}` : `PLC ${t?.label ?? key.slice(2)}`;
   }
   #countAt(key) { return this.wires.filter(w => w.a === key || w.b === key).length; }
-  #comOf(k) { return `P:COM${this.model.groups.findIndex(ks => ks.includes(k))}`; }
 
   #highlight() {
     for (const [k, t] of this.terms) {
@@ -319,91 +289,11 @@ export class Wiring {
 
   // ------------------------------------------------------------ 回路計算
   // 電源: 作業盤 DC24V (TB+ / TB-) と PLC サービス電源 (24V / 0V、ある機種のみ)
-  #rebuildNets() {
-    const parent = new Map();
-    const find = k => {
-      if (!parent.has(k)) parent.set(k, k);
-      let r = k;
-      while (parent.get(r) !== r) r = parent.get(r);
-      parent.set(k, r);
-      return r;
-    };
-    const union = (a, b) => parent.set(find(a), find(b));
-    for (let i = 1; i <= 4; i++) { union(`T:+${i}`, 'SRC:P+'); union(`T:-${i}`, 'SRC:P-'); }
-    if (this.model.service) { union('P:24V', 'SRC:S+'); union('P:0V', 'SRC:S-'); }
-    for (const w of this.wires) union(w.a, w.b);
-    this.find = find;
-    const same = (a, b) => find(a) === find(b);
-    this.short = same('SRC:P+', 'SRC:P-') || same('SRC:S+', 'SRC:S-') ||
-      (same('SRC:P+', 'SRC:S-') && same('SRC:P-', 'SRC:S+'));
+  #rebuildNets() { Object.assign(this, buildCircuit(this.model, this.wires)); }
 
-    // 各入力が「どの盤入力」に、各盤出力が「どの出力」に繋がっているか
-    this.xSources = range(16).map(k => {
-      const net = find(`P:IN${k}`);
-      return range(16).filter(i => find(`T:${i + 1}`) === net);
-    });
-    this.outSources = range(14).map(j => {
-      const net = find(`T:${20 + j}`);
-      return range(16).filter(k => find(`P:OUT${k}`) === net);
-    });
-  }
+  evaluate(panelClosed, plcY) { return evaluateCircuit(this, panelClosed, plcY); }
 
-  // panelClosed[16]: 盤入力機器の接点状態, plcY[16]: PLC 出力 → { x[16], out[14] }
-  evaluate(panelClosed, plcY) {
-    const find = this.find;
-    const x = new Array(16).fill(false);
-    const out = new Array(14).fill(false);
-    if (this.short) return { x, out };
-    const panelMinus = find('SRC:P-');
-    const common = find('P:INCOM');
-    // 入力コモンに + が来ている電源（シンク入力）
-    const srcs = [['SRC:P+', 'SRC:P-'], ['SRC:S+', 'SRC:S-']].filter(([p]) => find(p) === common);
-    for (let k = 0; k < 16; k++) {
-      const net = find(`P:IN${k}`);
-      x[k] = srcs.some(([, m]) => net === find(m) ||
-        (find(m) === panelMinus && this.xSources[k].some(i => panelClosed[i])));
-    }
-    // 出力機器は盤+24V側に接続済み。反対側(TB)が 0V に落ちれば点灯
-    for (let j = 0; j < 14; j++) {
-      const net = find(`T:${20 + j}`);
-      out[j] = net === panelMinus ||
-        this.outSources[j].some(k => plcY[k] && find(this.#comOf(k)) === panelMinus);
-    }
-    return { x, out };
-  }
-
-  // ------------------------------------------------------------ 配線チェック
-  check() {
-    const find = this.find, m = this.model;
-    const res = [];
-    const add = (level, text) => res.push({ level, text });
-    if (this.short) add('err', '短絡しています（+ と − が直結）。実機ならヒューズが切れます');
-    const common = find('P:INCOM');
-    const fromPanel = common === find('SRC:P+');
-    const fromService = m.service && common === find('SRC:S+');
-    if (!fromPanel && !fromService) add('err', `入力コモン（${m.inCommon}）に +24V が配線されていません`);
-    if (fromService && find('SRC:S-') !== find('SRC:P-'))
-      add('err', `${m.inCommon} をサービス電源 24V から取る場合、PLC の 0V と作業盤の − を接続してください`);
-    m.groups.forEach((ks, gi) => {
-      const used = ks.some(k => this.#countAt(`P:OUT${k}`) > 0);
-      if (used && find(`P:COM${gi}`) !== find('SRC:P-')) add('err', `出力コモン ${m.comLabel(gi)} が作業盤の −（0V）に接続されていません`);
-    });
-    for (let i = 1; i <= 16; i++) if (!this.#countAt(`T:${i}`)) add('warn', `TB${i} が未配線です`);
-    for (let j = 20; j <= 33; j++) if (!this.#countAt(`T:${j}`)) add('warn', `TB${j} が未配線です`);
-    for (const [k] of this.terms) if (this.#countAt(k) > 2) add('warn', `${this.name(k)} に ${this.#countAt(k)} 本つながっています（Y端子は2本まで）`);
-    for (let i = 1; i <= 16; i++) {
-      const xs = range(16).filter(k => find(`P:IN${k}`) === find(`T:${i}`)).map(m.x);
-      if (xs.length && xs[0] !== m.x(i - 1)) add('info', `TB${i} → ${xs.join(',')}（標準割付は ${m.x(i - 1)}）`);
-      if (xs.length > 1) add('err', `TB${i} が複数の入力 ${xs.join(',')} に接続されています`);
-    }
-    for (let j = 0; j < 14; j++) {
-      const ys = this.outSources[j].map(m.y);
-      if (ys.length && ys[0] !== m.y(j)) add('info', `TB${20 + j} → ${ys.join(',')}（標準割付は ${m.y(j)}）`);
-      if (ys.length > 1) add('err', `TB${20 + j} が複数の出力 ${ys.join(',')} に接続されています`);
-    }
-    if (!res.some(r => r.level !== 'info')) add('ok', '配線に問題は見つかりませんでした');
-    return res;
-  }
+  check() { return checkCircuit(this, this.terms.keys(), key => this.name(key)); }
 
   // I/O モニタ用: 入力 k / 出力 k の端子名と、つながっている盤の機器
   termX(k) { return this.model.x(k); }

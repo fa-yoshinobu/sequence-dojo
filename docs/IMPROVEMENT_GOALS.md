@@ -24,7 +24,7 @@ G2 の完了後は、追加したテスト（`dotnet test` と画面側のテス
 | # | ゴール | 優先度 | 状態 |
 | --- | --- | --- | --- |
 | G1 | 他のWebページからPLCを操作できない | 高 | 完了 |
-| G2 | アプリ本体に自動テストがあり、push/PRで走る | 高 | 未着手 |
+| G2 | アプリ本体に自動テストがあり、push/PRで走る | 高 | 実装・ローカル検証済み（外部CI検証待ち） |
 | G3 | 切断・異常時にPLCへ古い入力が残らない | 高 | 未着手 |
 | G4 | 文書の記述がコードと一致している | 高 | 未着手 |
 | G5 | 一時フォルダーへの全展開をやめる | 中 | 未着手 |
@@ -70,15 +70,15 @@ G2 の完了後は、追加したテスト（`dotnet test` と画面側のテス
 **対象**: `tests/`（新規プロジェクト）、`SequenceDojo.sln`、`src/SequenceDojo/SequenceDojo.csproj`、`.github/workflows/`（新規 `ci.yml`）、`docs/build.md`
 
 **完了条件**
-- [ ] `tests/SequenceDojo.Tests`（xUnit）があり、次をテストする。
+- [x] `tests/SequenceDojo.Tests`（xUnit）があり、次をテストする。
   - `PlcLinks.Normalize`: 旧形式の機種名、シミュレータ指定での接続先の置換、周期・タイムアウトの範囲制限。
   - `ModbusLink` のアドレス解析: 正常系、読出し専用領域への書込み指定、範囲超過。
   - `PlcService`: テスト用の `IPlcLink` を使い、入力が変化したときだけ書き込むこと、通信エラー後に再開すること。
-- [ ] 画面側のテストが `node --test` で動く（追加の依存なし）。対象は `Wiring.evaluate` / `check`（短絡、入力コモン未配線、標準割付）と `TaskRunner`（`expect` / `waitFor` / `expectFor`、中断）。
-- [ ] 上記のために、`Wiring` の回路計算を Three.js に依存しない部分へ分ける（計算結果は変えない）。
-- [ ] `ci.yml` が `push`（main）と `pull_request` で起動し、`dotnet build`・`dotnet test`・`node --test`・`python -m unittest discover -s tests/release` を実行する。
-- [ ] Actionはコミットハッシュで固定し、`permissions: contents: read`、`persist-credentials: false`、`timeout-minutes` を設定する。
-- [ ] `docs/build.md` にテストの実行方法を追記する。
+- [x] 画面側のテストが `node --test` で動く（追加の依存なし）。対象は `Wiring.evaluate` / `check`（短絡、入力コモン未配線、標準割付）と `TaskRunner`（`expect` / `waitFor` / `expectFor`、中断）。
+- [x] 上記のために、`Wiring` の回路計算を Three.js に依存しない部分へ分ける（計算結果は変えない）。
+- [x] `ci.yml` が `push`（main）と `pull_request` で起動し、`dotnet build`・`dotnet test`・`node --test`・`python -m unittest discover -s tests/release` を実行する。
+- [x] Actionはコミットハッシュで固定し、`permissions: contents: read`、`persist-credentials: false`、`timeout-minutes` を設定する。
+- [x] `docs/build.md` にテストの実行方法を追記する。
 
 **検証**: `Wiring.evaluate` の判定を一時的に壊すと、テストとCIが失敗する。
 

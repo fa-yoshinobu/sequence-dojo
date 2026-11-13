@@ -29,7 +29,7 @@ public sealed partial class ModbusLink : IPlcLink
     [GeneratedRegex(@"^(C|DI|HR|IR)([0-9]+)$")]
     private static partial Regex AddressPattern();
 
-    private static (string Area, ushort Number) Parse(string address, bool forWrite)
+    internal static (string Area, ushort Number) Parse(string address, bool forWrite)
     {
         var m = AddressPattern().Match(address);
         if (!m.Success || !ushort.TryParse(m.Groups[2].Value, out var number))

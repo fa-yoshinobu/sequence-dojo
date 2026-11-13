@@ -11,6 +11,7 @@ public sealed class PlcService : IAsyncDisposable
     public const int InputCount = 16;
     public const int OutputCount = 16; // 標準割付で使うのは 14 点
 
+    private readonly Func<PlcConfig, CancellationToken, Task<IPlcLink>> _openLink;
     private readonly object _lock = new();
     private readonly bool[] _inputs = new bool[InputCount];
     private readonly bool[] _outputs = new bool[OutputCount];
@@ -20,6 +21,10 @@ public sealed class PlcService : IAsyncDisposable
     private Task? _loop;
     private string? _error;
     private double _scanMs;
+
+    public PlcService() : this(PlcLinks.OpenAsync) { }
+
+    internal PlcService(Func<PlcConfig, CancellationToken, Task<IPlcLink>> openLink) => _openLink = openLink;
 
     public event Action<PlcState>? StateChanged;
 
@@ -43,7 +48,7 @@ public sealed class PlcService : IAsyncDisposable
         {
             var effective = PlcLinks.Normalize(config);
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var link = await PlcLinks.OpenAsync(effective, cts.Token);
+            var link = await _openLink(effective, cts.Token);
             lock (_lock) _link = link;
             _loopCts = new CancellationTokenSource();
             _loop = Task.Run(() => RunLoopAsync(link, effective.IntervalMs, _loopCts.Token));
