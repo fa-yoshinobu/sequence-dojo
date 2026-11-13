@@ -1,4 +1,4 @@
-import { TaskRunner, GRADE_TIME } from './tasks.js';
+import { TaskRunner, GRADE_TIME, MAX_TASK_BYTES, parseTask } from './tasks.js';
 export function createTaskControls(st, sim, store, restore) {
   const runner = new TaskRunner(sim);
   let taskList = [];
@@ -6,16 +6,49 @@ export function createTaskControls(st, sim, store, restore) {
   const timerEl = document.getElementById('timer');
   let timerStart = null;
 
-  async function loadTasks() {
-    try { taskList = await TaskRunner.loadList(); } catch (e) { taskList = []; }
-    taskSelect.innerHTML = taskList.map((t, i) => `<option value="${i}">${t.title}（${t.grade}級相当）</option>`).join('');
-    taskSelect.value = restore('task', 0);
+  const status = document.getElementById('taskImportStatus');
+  async function loadTasks(selectedFile) {
+    const errors = [];
+    taskList = await TaskRunner.loadList(message => errors.push(message));
+    taskSelect.textContent = '';
+    taskList.forEach((task, index) => {
+      const option = document.createElement('option');
+      option.value = index;
+      option.textContent = `${task.title}（${task.grade}級相当）`;
+      taskSelect.appendChild(option);
+    });
+    const selected = selectedFile ? taskList.findIndex(t => t.file === selectedFile) : +restore('task', 0);
+    taskSelect.value = selected >= 0 && selected < taskList.length ? selected : 0;
+    status.textContent = errors.join('\n');
     showTask();
   }
+  const fileInput = document.getElementById('taskFile');
+  document.getElementById('btnImportTask').onclick = () => { if (!runner.running) fileInput.click(); };
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files?.[0];
+    if (!file || runner.running) return;
+    try {
+      if (file.size > MAX_TASK_BYTES) throw new Error('5 MB 以下の課題ファイルを選んでください');
+      const content = await file.text();
+      parseTask(content);
+      const response = await fetch('api/tasks', { method:'POST', headers:{'Content-Type':'application/json'}, body:content });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? result.detail ?? `HTTP ${response.status}`);
+      await loadTasks(result.file);
+      status.textContent = `読み込みました: ${file.name}` + (status.textContent ? '\n'+status.textContent : '');
+    } catch (e) { status.textContent = `${file.name}: ${e.message}`; }
+    finally { fileInput.value = ''; }
+  });
+  document.getElementById('btnTaskFolder').onclick = async () => {
+    try {
+      const response = await fetch('api/tasks/open-folder', { method:'POST' });
+      if (!response.ok) throw new Error(`フォルダーを開けませんでした（HTTP ${response.status}）`);
+    } catch (e) { status.textContent = e.message; }
+  };
   function currentTask() { return taskList[+taskSelect.value]; }
   function showTask() {
     const t = currentTask();
-    if (!t) return;
+    if (!t) { document.getElementById('taskDesc').textContent = ''; return; }
     store('task', +taskSelect.value);
     document.getElementById('taskDesc').textContent = t.description;
     const [std, cut] = GRADE_TIME[t.grade] ?? GRADE_TIME[3];

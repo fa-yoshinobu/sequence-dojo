@@ -134,6 +134,12 @@
   </section>
 
   <section data-pane="task" hidden>
+    <div class="btns">
+      <button id="btnImportTask">課題ファイルを読み込む</button>
+      <button id="btnTaskFolder">課題フォルダーを開く</button>
+      <input id="taskFile" type="file" accept=".json,application/json" hidden>
+    </div>
+    <pre id="taskImportStatus" class="hint" role="status"></pre>
     <select id="taskSelect"></select>
     <pre id="taskDesc" class="desc"></pre>
     <div class="timer"><span id="timer">00:00:00</span><span id="timerLimit" class="small"></span></div>

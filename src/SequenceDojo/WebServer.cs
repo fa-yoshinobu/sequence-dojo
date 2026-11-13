@@ -60,6 +60,7 @@ public static class WebServer
         var plc = app.Services.GetRequiredService<PlcService>();
         var session = app.Services.GetRequiredService<BrowserSession>();
         DiagnosticLog.Shared.RegisterSecret(session.Token);
+        TaskFiles.MapEndpoints(app, session);
         var sockets = new ConcurrentDictionary<WebSocket, SemaphoreSlim>();
         var projectClients = new ConcurrentDictionary<WebSocket, string>();
 

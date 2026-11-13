@@ -21,6 +21,68 @@ export const GRADE_TIME = { // 製作等作業試験 [標準, 打切り] 分
   3: [95, 115],
 };
 
+export const MAX_TASK_BYTES = 5 * 1024 * 1024;
+const commands = ['reset','press','hold','ss0','ss1','dsw','work','clearWorks','wait','note','expect','waitFor','expectFor'];
+const boolConditions = /^(PL[1-4]|RY[12]|LS[1-5])$/;
+const object = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+const integer = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+
+export function validateTask(task) {
+  const errors = [];
+  const fail = (path, message) => errors.push(`${path}: ${message}`);
+  if (!object(task)) return ['$: 課題はオブジェクトにしてください'];
+  if (typeof task.title !== 'string' || !task.title.trim()) fail('title', '課題名が必要です');
+  if ('grade' in task && !integer(task.grade,1,3)) fail('grade', '1〜3 の整数にしてください');
+  if ('description' in task && typeof task.description !== 'string') fail('description', '文字列にしてください');
+  if (!Array.isArray(task.scenario) || !task.scenario.length) { fail('scenario', '1手順以上の配列が必要です'); return errors; }
+  task.scenario.forEach((step,i) => {
+    const path = `scenario[${i}]`;
+    if (!object(step)) { fail(path,'手順はオブジェクトにしてください'); return; }
+    const keys = commands.filter(k => k in step), command = keys[0], v = step[command];
+    if (keys.length !== 1) { fail(path,'1手順には命令を1つだけ指定してください'); return; }
+    const allowed = [command, 'msg', ...(command === 'press' || command === 'expectFor' ? ['ms'] : []), ...(command === 'hold' ? ['on'] : []), ...(command === 'waitFor' ? ['timeout'] : [])];
+    if (Object.keys(step).some(k => !allowed.includes(k))) fail(path,'不明な項目があります');
+    if ('msg' in step && typeof step.msg !== 'string') fail(path+'.msg','文字列にしてください');
+    for (const k of ['ms','timeout']) if (k in step && !integer(step[k],1,2147483647)) fail(path+'.'+k,'1〜2147483647 の整数にしてください');
+    if (command === 'expectFor' && !('ms' in step)) fail(path+'.ms','継続時間が必要です');
+    if (['reset','clearWorks'].includes(command) && v !== true) fail(path+'.'+command,'true にしてください');
+    if (['ss0','ss1'].includes(command) && typeof v !== 'boolean') fail(path+'.'+command,'true / false にしてください');
+    if (['press','hold'].includes(command) && !/^PB[1-5]$/.test(typeof v === 'string' ? v : '')) fail(path+'.'+command,'PB1〜PB5 を指定してください');
+    if (command === 'hold' && typeof step.on !== 'boolean') fail(path+'.on','true / false が必要です');
+    if (command === 'dsw' && !integer(v,0,9)) fail(path+'.dsw','0〜9 の整数にしてください');
+    if (command === 'wait' && !integer(v,1,2147483647)) fail(path+'.wait','1〜2147483647 の整数にしてください');
+    if (command === 'note' && typeof v !== 'string') fail(path+'.note','文字列にしてください');
+    if (command === 'work' && (!object(v) || !['left','center','right'].includes(v.at) || !Array.isArray(v.screws) || v.screws.length !== 4 || !v.screws.every(b => typeof b === 'boolean' || b === 0 || b === 1))) fail(path+'.work','位置と4本のビス（0 / 1 または boolean）が必要です');
+    if (['expect','waitFor','expectFor'].includes(command)) {
+      if (!object(v) || !Object.keys(v).length) fail(path+'.'+command,'1つ以上の条件が必要です');
+      else for (const [key,value] of Object.entries(v)) {
+        const valid = boolConditions.test(key) ? typeof value === 'boolean' : /^DPL[12]$/.test(key) ? integer(value,-1,9) : key === 'conveyor' && ['left','right','stop'].includes(value);
+        if (!valid) fail(path+'.'+command+'.'+key,'条件キーまたは値の型・範囲が不正です');
+      }
+    }
+  });
+  return errors;
+}
+
+export function parseTask(text) {
+  if (new TextEncoder().encode(text).length > MAX_TASK_BYTES) throw new Error('5 MB 以下の課題ファイルを選んでください');
+  const task = JSON.parse(text), errors = validateTask(task);
+  if (errors.length) {
+    // Locate scenario objects without treating quoted brackets or braces as structure.
+    const lines = []; let depth = 0, scenario = false, arrayDepth = -1;
+    for (const match of text.matchAll(/"(?:[^"\\]|\\.)*"|[{}\[\]]/g)) {
+      const token = match[0];
+      if (!scenario && depth === 1 && token === '"scenario"' && /^\s*:/.test(text.slice(match.index + token.length))) scenario = true;
+      else if (scenario && arrayDepth < 0 && token === '[') arrayDepth = depth;
+      if (token === '{' && arrayDepth >= 0 && depth === arrayDepth + 1) lines.push(text.slice(0,match.index).split('\n').length);
+      if (token === '{' || token === '[') depth++;
+      else if (token === '}' || token === ']') depth--;
+    }
+    throw new Error(errors.map(e => { const index = /^scenario\[(\d+)\]/.exec(e); return `行 ${index ? lines[+index[1]] ?? 1 : 1}: ${e}`; }).join('\n'));
+  }
+  return { grade:3, description:'', ...task };
+}
+
 
 export class TaskRunner {
   constructor(sim) {
@@ -29,9 +91,29 @@ export class TaskRunner {
     this.abort = false;
   }
 
-  static async loadList() {
-    const files = await (await fetch('tasks/index.json')).json();
-    return Promise.all(files.map(async f => ({ file: f, ...(await (await fetch(`tasks/${f}`)).json()) })));
+  static async loadList(onError = () => {}) {
+    const tasks = [];
+    let files = [];
+    try { files = await (await fetch('tasks/index.json')).json(); }
+    catch (e) { onError(`同梱課題一覧: ${e.message}`); }
+    for (const file of files) {
+      try {
+        const response = await fetch(`tasks/${file}`);
+        if (response.ok === false) throw new Error(`HTTP ${response.status}`);
+        tasks.push({ file, ...parseTask(await response.text()) });
+      } catch (e) { onError(`${file}: ${e.message}`); }
+    }
+    try {
+      const response = await fetch('api/tasks');
+      if (response.ok === false) throw new Error(`HTTP ${response.status}`);
+      const user = await response.json();
+      for (const error of user.errors ?? []) onError(error);
+      for (const item of user.items ?? []) {
+        try { tasks.push({ file:item.file, ...parseTask(item.content) }); }
+        catch (e) { onError(`${item.file}: ${e.message}`); }
+      }
+    } catch (e) { onError(`追加課題: ${e.message}`); }
+    return tasks;
   }
 
   check(cond) {
