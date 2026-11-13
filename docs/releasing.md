@@ -23,11 +23,11 @@ VirusTotal への通常の送信は公開サンプルの投稿です。検査結
 
 [Release ワークフロー](../.github/workflows/release.yml)は .NET 10 で単一ファイルの EXE を発行し、`SequenceDojo-win-x64.zip` を公開します。ZIP の内容は **`SequenceDojo.exe` の 1 ファイルだけ**です（入っていなければワークフローを失敗にします）。
 
-タグは `vMAJOR.MINOR.PATCH` または `vMAJOR.MINOR.PATCH-rc.1` などの形式を使用します。EXE のバージョンもタグに合わせます。ハイフン付きのタグは GitHub のプレリリースとして公開します。作成済みのタグから公開する場合は **Actions → Release → Run workflow** の `release_tag` にそのタグを指定します。
+タグは `vMAJOR.MINOR.PATCH` または `vMAJOR.MINOR.PATCH-rc.1` などの形式を使用します。EXE のバージョンもタグに合わせます。ワークフローはcsprojの製品版とタグを比較し、発行後のEXEからProductVersionを読み戻して一致を確認してからZIPを作成します。ハイフン付きのタグは GitHub のプレリリースとして公開します。作成済みのタグから公開する場合は **Actions → Release → Run workflow** の `release_tag` にそのタグを指定します。
 
 公開時の本文にはダウンロードリンク・起動方法と「VirusTotal：検査中。」を表示します。公開後のジョブが VirusTotal の検査ワークフローを呼び、完了すると検査中の表示を結果リンクに置き換えます。
 
-リリース本文と検査CIの表示は英語です。本文の定型文は [`.github/release-notes.md`](../.github/release-notes.md) で管理します。`release_assets.py` がZIPのSHA-256を作成し、英語本文へタグ付きの配布リンクを埋め込みます。Changes節は公開前にCHANGELOGから更新してください。検査が完了している既存リリースの本文だけを更新する場合は、**Actions → Update release notes → Run workflow** で `release_tag` を指定します。配布ファイルやタグを変更せず、VirusTotal の再検査も行いません。
+リリース本文と検査CIの表示は英語です。本文の定型文は [`.github/release-notes.md`](../.github/release-notes.md) で管理します。`release_assets.py` がZIPのSHA-256を作成し、英語本文へタグ付きの配布リンクを埋め込みます。Changes節は公開前にCHANGELOGから更新してください。検査が完了している既存リリースの本文だけを更新する場合は、**Actions → Update English release notes → Run workflow** で `release_tag` を指定します。配布ファイルやタグを変更せず、VirusTotal の再検査も行いません。
 
 ## 公開後の検査と再検査
 
@@ -58,6 +58,22 @@ VirusTotal への通常の送信は公開サンプルの投稿です。検査結
 | `.github/workflows/update-release-notes.yml` | 検査済み Release の本文だけを定型文で更新 |
 | `.github/scripts/check_release_virustotal.py` | Release の EXE（ZIP 内を含む）を取得して検査し、本文の検査欄を置き換える |
 | `.github/scripts/scan_virustotal.py` | VirusTotal API へのファイル送信と結果取得 |
-| `.github/scripts/render-release-notes.ps1` | 本文の定型文にダウンロード URL と検査結果を埋め込む |
+| `.github/scripts/release_assets.py` | ZIPのSHA-256を作成し、英語本文へタグ付きのダウンロードURLを埋め込む |
+| `.github/scripts/check_runtime_update.py` / `.github/workflows/check-runtime-update.yml` | 公式メタデータから固定ランタイムの更新を週次確認する |
 | `.github/release-notes.md` | Release 本文の定型文 |
 | `tests/release/` | 検査スクリプトのテスト（`python -m unittest discover -s tests/release`） |
+
+
+## 同梱ランタイムの更新確認
+
+自己完結EXEの再現性のため、`SequenceDojo.csproj` の `RuntimeFrameworkVersion` プロパティは `SelfContained=true` の発行時だけ有効にしてランタイムを固定します。`run.bat` などのフレームワーク依存の開発起動にはこのパッチ版の固定を適用せず、SDKの既定の最小ランタイムとPCに導入済みの互換パッチ版を使用します。PCに入っている.NETを更新しても配布EXEの同梱版は変わりません。
+
+`Check bundled runtime` は毎週水曜日と手動起動で、Microsoftの公式リリースメタデータと固定値を比較します。同じメジャー・マイナーの最新安定版だけを対象にし、プレビューは除外します。更新ありはSummaryとログに表示して終了コード1、取得・設定エラーは終了コード2で失敗します。自動の版変更・リリース作成・Asset差替えは行いません。
+
+```powershell
+python -B .github/scripts/check_runtime_update.py
+```
+
+更新を採用するときは固定値を変更し、ビルド・テスト・自己完結EXEの動作と同梱版を確認したうえで、新しい製品版として公開します。公開済みZIPは更新しません。
+
+検査スクリプトはLadder_viewerと同じ更新・解析処理へ揃えています。共通仕様リポジトリには利用可能な再利用ワークフローがないため、各リポジトリ内の既存スクリプトを維持します。

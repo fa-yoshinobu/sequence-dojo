@@ -98,6 +98,33 @@ class ReleaseVirusTotalTests(unittest.TestCase):
                 github.update_body("v1", 42, "result")
             api.assert_not_called()
 
+    def test_unchanged_release_body_does_not_send_a_patch(self):
+        github = check.GitHub("owner/repo", self.output)
+        body = check.replace_block("Original notes.", "result")
+        with mock.patch.object(github, "release", return_value={"id": 42, "body": body}), mock.patch.object(github, "api") as api:
+            github.update_body("v1", 42, "result")
+            api.assert_not_called()
+
+    def test_failed_patch_response_is_accepted_only_after_the_saved_body_is_verified(self):
+        github = check.GitHub("owner/repo", self.output)
+        original = "Original notes."
+        body = check.replace_block(original, "result")
+        with mock.patch.object(github, "release", side_effect=[{"id": 42, "body": original}, {"id": 42, "body": body}]) as release, mock.patch.object(github, "api", side_effect=check.CheckError("GitHub API access failed.")) as api:
+            github.update_body("v1", 42, "result")
+            self.assertEqual(release.call_args_list, [mock.call("v1"), mock.call("v1")])
+            api.assert_called_once_with("repos/owner/repo/releases/42", {"body": body})
+
+    def test_failed_patch_stays_failed_when_readback_is_missing_changed_or_replaced(self):
+        github = check.GitHub("owner/repo", self.output)
+        original = "Original notes."
+        body = check.replace_block(original, "result")
+        for saved in [{"id": 42, "body": original}, {"id": 42, "body": body + "Concurrent edit"},
+                      {"id": 43, "body": body}, check.CheckError("Readback failed.")]:
+            with self.subTest(saved=saved), mock.patch.object(github, "release", side_effect=[{"id": 42, "body": original}, saved]), mock.patch.object(github, "api", side_effect=check.CheckError("GitHub API access failed.")) as api:
+                with self.assertRaises(check.CheckError):
+                    github.update_body("v1", 42, "result")
+                api.assert_called_once()
+
     def test_api_errors_do_not_disclose_response_or_token(self):
         github = check.GitHub("owner/repo", self.output)
         with mock.patch.object(check.subprocess, "run", return_value=subprocess.CompletedProcess([], 1, b"private response", b"offline-test-token /private/path")):
@@ -196,6 +223,7 @@ class ReleaseVirusTotalTests(unittest.TestCase):
         self.assertIn("scan incomplete", github.updates[-1])
         self.assertNotIn("scan completed", github.updates[-1])
         self.assertNotIn("/detection", github.updates[-1])
+        self.assertIn("Release assets changed; a rescan is required.", github.updates[-1])
         details = (self.output / "reports/release-virustotal.md").read_text(encoding="utf-8")
         self.assertIn("Rescan the changed release assets", details)
         self.assertIn("obsolete results", details)

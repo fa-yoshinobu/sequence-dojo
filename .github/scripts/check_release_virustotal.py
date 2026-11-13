@@ -89,7 +89,15 @@ class GitHub:
         if current["id"] != release_id:
             raise CheckError("The release was replaced during analysis; its body was not updated.")
         body = replace_block(current.get("body") or "", content)
-        self.api(f"repos/{self.repository}/releases/{release_id}", {"body": body})
+        if body == current.get("body"):
+            return
+        try:
+            self.api(f"repos/{self.repository}/releases/{release_id}", {"body": body})
+        except CheckError:
+            # GitHub can save an update before returning a server error.
+            saved = self.release(tag)
+            if saved["id"] != release_id or saved.get("body") != body:
+                raise
 
     def download(self, asset: dict, destination: Path):
         size, asset_id = asset.get("size"), asset.get("id")
@@ -225,6 +233,8 @@ def release_markdown(entries: list, errors: list) -> str:
     lines = ["## Security scan"]
     if not complete:
         lines.append("VirusTotal scan incomplete.")
+    if any(entry.get("obsolete") for entry in entries):
+        lines.append("Release assets changed; a rescan is required.")
     for entry in entries:
         if entry.get("obsolete"):
             continue

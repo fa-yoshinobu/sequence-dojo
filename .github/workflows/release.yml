@@ -78,6 +78,9 @@ jobs:
 
       - name: Package executable
         run: |
+          $exe = (Resolve-Path -LiteralPath 'artifacts/release/SequenceDojo.exe').Path
+          $actualVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($exe).ProductVersion.Split('+')[0]
+          if ($actualVersion -cne $env:RELEASE_VERSION) { throw 'Published EXE version must match the release tag.' }
           Compress-Archive -LiteralPath 'artifacts/release/SequenceDojo.exe' -DestinationPath 'artifacts/release/SequenceDojo-win-x64.zip' -Force
 
       - name: Set up release tools

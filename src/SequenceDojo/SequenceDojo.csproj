@@ -4,7 +4,7 @@
     <!-- Windows アプリ（WinForms + WebView2）。サーバーは同じプロセス内で動く -->
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <RuntimeFrameworkVersion>10.0.14</RuntimeFrameworkVersion>
+    <RuntimeFrameworkVersion Condition="'$(SelfContained)' == 'true'">10.0.14</RuntimeFrameworkVersion>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
